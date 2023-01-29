@@ -29,21 +29,18 @@ cam = cv2.VideoCapture(camID)
 time.sleep(1)
 
 
-class MultiCameraCapture:
-    def __init__(self, sources: dict) -> None:
-        assert sources
-        print(sources)
-
-        self.captures = {}
-        for camera_name, link in sources.items():
-            
-
-
 photo = None
 def updateFrame():
     global canvas, photo, frame, canvas2, frame2, photo2
-    ret, frame = videoCapture.read()
-    ret, frame2 = cam.read()
+    # The method for using OpenCV grab() - retrieve()
+    # We are not using read() here because, documentation insists that it is slower in multi-thread environment.
+    # capture.grab()
+    # ret, frame = capture.retrieve()
+    # link: https://www.youtube.com/watch?v=XEvpWg8msLg
+    videoCapture.grab()
+    cam.grab()
+    ret, frame = videoCapture.retrieve()
+    ret, frame2 = cam.retrieve()
 
     frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     photo = PIL.ImageTk.PhotoImage(image=PIL.Image.fromarray(frame))
