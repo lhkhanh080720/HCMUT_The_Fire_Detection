@@ -32,11 +32,13 @@ time.sleep(1)
 photo = None
 def updateFrame():
     global canvas, photo, frame, canvas2, frame2, photo2
+
     # The method for using OpenCV grab() - retrieve()
     # We are not using read() here because, documentation insists that it is slower in multi-thread environment.
     # capture.grab()
     # ret, frame = capture.retrieve()
     # link: https://www.youtube.com/watch?v=XEvpWg8msLg
+    
     videoCapture.grab()
     cam.grab()
     ret, frame = videoCapture.retrieve()
