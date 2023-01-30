@@ -64,3 +64,6 @@ while True:
 
     if cv2.waitKey(1) == ord('q'): #check Button 'q' in 1 milis and do st...
         break
+videoCapture.release()
+cam.release()
+cv2.destroyAllWindows()
