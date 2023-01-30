@@ -1,138 +1,112 @@
-from tkinter import *
-import tkinter
-from tkinter.ttk import * #for combobox
-import cv2
-import PIL.Image, PIL.ImageTk
-from threading import Thread
-from datetime import datetime
+from libs import *
 
-import os
-import time
-import argparse # Library support Command Line Interface (CLI)
-import numpy as np
-import serial
-
-import cv2
-import pycuda.autoinit  # This is needed for initializing CUDA driver
-
-from utils.yolo_classes import get_cls_dict
-from utils.camera import add_camera_args, Camera
-from utils.display import open_window, set_display, show_fps
-from utils.visualization import BBoxVisualization
-from utils.yolo_with_plugins import TrtYOLO
-
+# Real Camera
 camera_id = "/dev/video1"
 videoCapture = cv2.VideoCapture(camera_id, cv2.CAP_V4L2)
-# Wait a second to let the port initialize
+# Zoom Camera
 camID = 'nvarguscamerasrc ! video/x-raw(memory:NVMM), width=640, height=480, format=NV12, framerate=21/1 ! nvvidconv flip-method='+'2'+' ! video/x-raw, width='+'640'+', height='+'480'+', format=BGRx ! videoconvert ! video/x-raw, format=BGR ! appsink' 
 cam = cv2.VideoCapture(camID)
+# Wait a second to let the port initialize
 time.sleep(1)
 
+class MultiCamera:
+    numClass = 2     #The numbers of classes
+    cls_dict = get_cls_dict(numClass)
+    vis = BBoxVisualization(cls_dict)
+    trt_yolo = TrtYOLO('obj', numClass, False)
 
-photo = None
-def updateFrame():
-    global canvas, photo, frame, canvas2, frame2, photo2
-
-    # The method for using OpenCV grab() - retrieve()
-    # We are not using read() here because, documentation insists that it is slower in multi-thread environment.
-    # capture.grab()
-    # ret, frame = capture.retrieve()
-    # link: https://www.youtube.com/watch?v=XEvpWg8msLg
+    def __init__(self, para_source) -> None:
+        self.source = para_source
+        self.frame = None
     
-    videoCapture.grab()
-    cam.grab()
-    ret, frame = videoCapture.retrieve()
-    ret, frame2 = cam.retrieve()
+    def getFrame(self, capture):
+        # The method for using OpenCV grab() - retrieve()
+        # We are not using read() here because, documentation insists that it is slower in multi-thread environment.
+        # capture.grab()
+        # ret, frame = capture.retrieve()
+        capture.grab()
 
-    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    photo = PIL.ImageTk.PhotoImage(image=PIL.Image.fromarray(frame))
+        ret, frame = capture.retrieve()
+        #===Detect The Fire===
+        self.detectObjects(MultiCamera.trt_yolo, MultiCamera.vis, frame)
 
-    canvas.create_image(0, 0, image=photo, anchor=tkinter.NW)
+        if not ret:
+            print("empty frame")
+            return
+        self.frame = frame
 
-    frame2 = cv2.cvtColor(frame2, cv2.COLOR_BGR2RGB)
-    photo2 = PIL.ImageTk.PhotoImage(image=PIL.Image.fromarray(frame2))
+    def detectObjects(self, trt_yolo, vis, frame):   
+        boxes, confs, clss = trt_yolo.detect(frame, 0.3)
 
-    canvas2.create_image(0, 0, image=photo2, anchor=tkinter.NW)
-    window.after(10, updateFrame)
+        #Precise poison filter (> 0.6)
+        indexDel = []
+        for index, value in enumerate(confs):
+            if value <= 0.7:
+                indexDel.append(index)
+        boxes = np.delete(boxes, indexDel, 0)
+        confs = np.delete(confs, indexDel)
+        clss = np.delete(clss, indexDel)
+        
+        if len(confs) > 0: 
+            self.frame, (x_min, y_min, x_max, y_max) = vis.draw_bboxes(frame, boxes, confs, clss)
 
+#ádjkhbạkdbalksdblábdá
+realCam = MultiCamera(videoCapture)
+zoomCam = MultiCamera(cam)
+while True:
 
-window = Tk()
+    realCam.getFrame(realCam.source)
+    cv2.imshow("realCam", realCam.frame)
+    cv2.moveWindow("realCam", 0, 0)
 
-window.title("The Fire Detection")
-window.geometry("1300x650")
-# window.resizable(False, False)
-#add background
-canvas1 = Canvas(window, width=1120, height=800, bg='red')
-canvas1.place(x = 0, y = 0) 
+    zoomCam.getFrame(zoomCam.source)
+    cv2.imshow("zoomCam", zoomCam.frame)
+    cv2.moveWindow("zoomCam", 650, 0)
 
-#add cam
-canvas = Canvas(window, width=640, height=480)
-canvas.place(x = 4, y = 100)
-canvas2 = Canvas(window, width=640, height=480)
-canvas2.place(x = 650, y = 100)
-updateFrame()
-
-window.mainloop()
-
-
-# camID = 'nvarguscamerasrc ! video/x-raw(memory:NVMM), width=640, height=480, format=NV12, framerate=21/1 ! nvvidconv flip-method='+'2'+' ! video/x-raw, width='+'640'+', height='+'480'+', format=BGRx ! videoconvert ! video/x-raw, format=BGR ! appsink' 
-# cam = cv2.VideoCapture(camID)
-
-# camera_id = "/dev/video1"
-# videoCapture = cv2.VideoCapture(camera_id, cv2.CAP_V4L2)
-# videoCapture.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'YUYV'))
-
-# # while True:
-# #     ret, frame = cam.read()
-# #     ret, frame2 = videoCapture.read()
-
-# #     cv2.imshow('Cam', frame)
-# #     cv2.moveWindow('Cam', 0, 0)  
-
-# #     cv2.imshow('Webcam', frame2)
-# #     cv2.moveWindow('Webcam',  650, 1) 
-
-# #     if cv2.waitKey(1) == ord('q'): #check Button 'q' in 1 milis and do st...
-# #         break
-
+    if cv2.waitKey(1) == ord('q'): #check Button 'q' in 1 milis and do st...
+        break
 
 # photo = None
-# photo2 = None
-# count = 0
 # def updateFrame():
-#     global cam, videoCapture, frame, frame2, canvas2, count
+#     global canvas, photo, frame, canvas2, frame2, photo2
 
-#     ret, frame = cam.read()
-#     if count < 2:
-#         print('===========================')
-#         cv2.imshow('Cam', frame)
-#         cv2.moveWindow('Cam', count*100, 0) 
-#     # ret, frame2 = videoCapture.read()
+#     # The method for using OpenCV grab() - retrieve()
+#     # We are not using read() here because, documentation insists that it is slower in multi-thread environment.
+#     # capture.grab()
+#     # ret, frame = capture.retrieve()
+#     # link: https://www.youtube.com/watch?v=XEvpWg8msLg
+    
+#     videoCapture.grab()
+#     cam.grab()
+#     ret, frame = videoCapture.retrieve()
+#     ret, frame2 = cam.retrieve()
+
 #     frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 #     photo = PIL.ImageTk.PhotoImage(image=PIL.Image.fromarray(frame))
-#     # frame2 = cv2.cvtColor(frame2, cv2.COLOR_BGR2RGB)
-    
-#     # photo2 = PIL.ImageTk.PhotoImage(image=PIL.Image.fromarray(frame2))
 
 #     canvas.create_image(0, 0, image=photo, anchor=tkinter.NW)
-#     # canvas2.create_image(0, 0, image=photo2, anchor=tkinter.NW)
+
+#     frame2 = cv2.cvtColor(frame2, cv2.COLOR_BGR2RGB)
+#     photo2 = PIL.ImageTk.PhotoImage(image=PIL.Image.fromarray(frame2))
+
+#     canvas2.create_image(0, 0, image=photo2, anchor=tkinter.NW)
 #     window.after(10, updateFrame)
+
 
 # window = Tk()
 
 # window.title("The Fire Detection")
-# window.geometry("1035x650")
-# window.resizable(False, False)
+# window.geometry("1300x650")
+# # window.resizable(False, False)
 # #add background
-# canvas = Canvas(window, width=1120, height=800, bg='red')
-# canvas.place(x = 0, y = 0) 
-# #add cam1
-# canvas2 = Canvas(window, width=640, height=480)
-# canvas2.place(x = 4, y = 100)
-# #add cam2
-# # canvas1 = Canvas(window, width=640, height=480)
-# # canvas1.place(x = 650, y = 100)
+# canvas1 = Canvas(window, width=1120, height=800, bg='red')
+# canvas1.place(x = 0, y = 0) 
 
+# #add cam
+# canvas = Canvas(window, width=640, height=480)
+# canvas.place(x = 4, y = 100)
+# canvas2 = Canvas(window, width=640, height=480)
+# canvas2.place(x = 650, y = 100)
 # updateFrame()
 
 # window.mainloop()
