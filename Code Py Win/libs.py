@@ -3,7 +3,7 @@ import tkinter
 from tkinter.ttk import * #for combobox
 import cv2
 import PIL.Image, PIL.ImageTk
-from threading import Thread
+from threading 
 from datetime import datetime
 
 import os
