@@ -29,7 +29,7 @@ class MultiCamera:
 
         ret, frame = para_source.retrieve()
         #===Detect The Fire===
-        self.detectObjects(MultiCamera.trt_yolo, MultiCamera.vis, frame)
+        # self.detectObjects(MultiCamera.trt_yolo, MultiCamera.vis, frame)
 
         if not ret:
             print("empty frame")
@@ -41,16 +41,16 @@ class MultiCamera:
         boxes, confs, clss = trt_yolo.detect(frame, 0.3)
 
         #Precise poison filter (> 0.6)
-        indexDel = []
-        for index, value in enumerate(confs):
-            if value <= 0.7:
-                indexDel.append(index)
-        boxes = np.delete(boxes, indexDel, 0)
-        confs = np.delete(confs, indexDel)
-        clss = np.delete(clss, indexDel)
+        # indexDel = []
+        # for index, value in enumerate(confs):
+        #     if value <= 0.7:
+        #         indexDel.append(index)
+        # boxes = np.delete(boxes, indexDel, 0)
+        # confs = np.delete(confs, indexDel)
+        # clss = np.delete(clss, indexDel)
         
-        if len(confs) > 0: 
-            self.frame, (x_min, y_min, x_max, y_max) = vis.draw_bboxes(frame, boxes, confs, clss)
+        # if len(confs) > 0: 
+        self.frame, (x_min, y_min, x_max, y_max) = vis.draw_bboxes(frame, boxes, confs, clss)
 
 # 2 object in class MultiCamera
 realCam = MultiCamera(videoCapture)
@@ -62,6 +62,8 @@ while True:
     zoomCam.getFrame("zoomCam")
     cv2.moveWindow("zoomCam", 650, 0)
 
+    print("oke")
+    
     if cv2.waitKey(1) == ord('q'): #check Button 'q' in 1 milis and do st...
         break
     

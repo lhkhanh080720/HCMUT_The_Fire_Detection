@@ -1,74 +1,40 @@
-from libs import *
+import cv2
+import multiprocessing
 
 # Real Camera
-camera_id = "/dev/video1"
-videoCapture = cv2.VideoCapture(camera_id, cv2.CAP_V4L2)
+camera_id1 = "/dev/video1"
+videoCapture1 = cv2.VideoCapture(camera_id1, cv2.CAP_V4L2)
 # Zoom Camera
-camID = 'nvarguscamerasrc ! video/x-raw(memory:NVMM), width=640, height=480, format=NV12, framerate=21/1 ! nvvidconv flip-method='+'2'+' ! video/x-raw, width='+'640'+', height='+'480'+', format=BGRx ! videoconvert ! video/x-raw, format=BGR ! appsink' 
-cam = cv2.VideoCapture(camID)
+camera_id2 = "/dev/video1"
+videoCapture2 = cv2.VideoCapture(camera_id2, cv2.CAP_V4L2)
 # Wait a second to let the port initialize
 time.sleep(1)
 
-class myThread(threading.Thread):
-    numClass = 2     #The numbers of classes
-    cls_dict = get_cls_dict(numClass)
-    vis = BBoxVisualization(cls_dict)
-    trt_yolo = TrtYOLO('obj', numClass, False)
+def process_frame(cap, pipe):
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        pipe.send(frame)
+    cap.release()
 
-    def __init__(self, threadID, name, paraSource):
-        threading.Thread.__init__(self)
-        self.threadID = threadID
-        self.name = name
-        self.source = paraSource
-        self.frame = None
-    
-    def run(self):
-        global videoCapture, cam
-        while True:
-            getFrame(self.name, self.source)
-            cv2.moveWindow(self.name, 650*self.threadID, 0)
-            if cv2.waitKey(1) == ord('q'): #check Button 'q' in 1 milis and do st...
-                videoCapture.release()
-                cam.release()
-                cv2.destroyAllWindows()
-                break
-    
-def getFrame(nameCam=str, para_source=None):
-    # The method for using OpenCV grab() - retrieve()
-    # We are not using read() here because, documentation insists that it is slower in multi-thread environment.
-    # capture.grab()
-    # ret, frame = capture.retrieve()
-    para_source.grab()
+def display_frames(pipe, window_name):
+    while True:
+        frame = pipe.recv()
+        cv2.imshow(window_name, frame)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+    cv2.destroyAllWindows()
 
-    ret, frame = para_source.retrieve()
-    #===Detect The Fire===
-    detectObjects(MultiCamera.trt_yolo, MultiCamera.vis, frame)
+if __name__ == '__main__':
+    camera_ids = [videoCapture1, videoCapture2]
+    window_names = ['Camera 0', 'Camera 1']
 
-    if not ret:
-        print("empty frame")
-        return
-    self.frame = frame
-    cv2.imshow(nameCam, self.frame)
+    pipes = [multiprocessing.Pipe() for _ in range(2)]
+    processes = [multiprocessing.Process(target=process_frame, args=(camera_ids[i], pipes[i][0],)) for i in range(2)]
+    [process.start() for process in processes]
 
-def detectObjects(trt_yolo, vis, frame):   
-    boxes, confs, clss = trt_yolo.detect(frame, 0.3)
+    display_processes = [multiprocessing.Process(target=display_frames, args=(pipes[i][1], window_names[i],)) for i in range(2)]
+    [process.start() for process in display_processes]
 
-    #Precise poison filter (> 0.6)
-    indexDel = []
-    for index, value in enumerate(confs):
-        if value <= 0.7:
-            indexDel.append(index)
-    boxes = np.delete(boxes, indexDel, 0)
-    confs = np.delete(confs, indexDel)
-    clss = np.delete(clss, indexDel)
-    
-    if len(confs) > 0: 
-        self.frame, (x_min, y_min, x_max, y_max) = vis.draw_bboxes(frame, boxes, confs, clss)
-
-#Create new threads
-thread1 = myThread(0, "realCam", videoCapture)
-thread2 = myThread(1, "zoomCam", cam)
-#Start new Threads
-thread1.start()
-thread2.start()
-    
+    [process.join() for process in processes + display_processes]

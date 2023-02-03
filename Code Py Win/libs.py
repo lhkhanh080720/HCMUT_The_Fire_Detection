@@ -4,6 +4,7 @@ from tkinter.ttk import * #for combobox
 import cv2
 import PIL.Image, PIL.ImageTk
 from threading 
+import multiprocessing
 from datetime import datetime
 
 import os
