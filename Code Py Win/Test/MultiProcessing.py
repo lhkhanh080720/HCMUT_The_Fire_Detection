@@ -15,9 +15,11 @@ def get_frame(cap, pipe):
     # Config index of Yolo detection
     numClass = 2     #The numbers of classes
     cls_dict = get_cls_dict(numClass)
+    print("hang 1") 
     vis = BBoxVisualization(cls_dict)
+    print("hang 2") 
     trt_yolo = TrtYOLO('obj', numClass, False)
-    print("Out config1") # can't go here
+    print("hang 3") 
     while True:
         print("Start loop1")
         ret, frame = cap.read()
