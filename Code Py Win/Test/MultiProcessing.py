@@ -1,3 +1,5 @@
+# PyCUDA WARNING: a clean-up operation failed (dead context maybe?) cuMemFreeHost failed: initialization error
+
 from libs import *
 import threading
 import multiprocessing
