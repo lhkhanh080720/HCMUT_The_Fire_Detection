@@ -1,40 +1,36 @@
+# ===============pyuic5 -x mainv1.ui -o mainv1.py===============
+# [TensorRT] ERROR: ../rtSafe/cuda/reformat.cu (925) - Cuda Error in NCHWToNCHHW2: 400 (invalid resource handle)
+# [TensorRT] ERROR: FAILED_EXECUTION: std::exception
+
 from libs import *
-import datetime
 
-# Real Camera
-camera_id = "/dev/video0"
-videoCapture = cv2.VideoCapture(camera_id, cv2.CAP_V4L2)
-# Zoom Camera
-camera_id2 = "/dev/video1"
-cam = cv2.VideoCapture(camera_id2, cv2.CAP_V4L2)
-# Wait a second to let the port initialize
-time.sleep(1)
+class CameraSignal(QtCore.QObject):
+    changePixmap1 = QtCore.pyqtSignal(np.ndarray)
+    changePixmap2 = QtCore.pyqtSignal(np.ndarray)
 
-class MultiCamera:
+class CaptureThread(threading.Thread):
     numClass = 2     #The numbers of classes
     cls_dict = get_cls_dict(numClass)
     vis = BBoxVisualization(cls_dict)
     trt_yolo = TrtYOLO('obj', numClass, False)
 
-    def __init__(self, para_source) -> None:
-        self.source = para_source
-        self.frame = None
-    
-    def getFrame(self, capture):
-        # The method for using OpenCV grab() - retrieve()
-        # We are not using read() here because, documentation insists that it is slower in multi-thread environment.
-        # capture.grab()
-        # ret, frame = capture.retrieve()
-        capture.grab()
+    def __init__(self, camera_id, signal):
+        threading.Thread.__init__(self)
+        self.camera_id = camera_id
+        self.signal = signal
+        self.cap = cv2.VideoCapture(self.camera_id, cv2.CAP_V4L2)
+        self.stop = False
 
-        ret, frame = capture.retrieve()
-        #===Detect The Fire===
-        self.detectObjects(MultiCamera.trt_yolo, MultiCamera.vis, frame)
-
-        if not ret:
-            print("empty frame")
-            return
-        self.frame = frame
+    def run(self):
+        while not self.stop:
+            self.cap.grab()
+            ret, frame = self.cap.retrieve()
+            # ret, frame = self.cap.read()
+            if self.camera_id == '/dev/video0':
+                self.signal.changePixmap1.emit(frame)
+            elif self.camera_id == '/dev/video1':
+                self.signal.changePixmap2.emit(frame)
+            self.detectObjects(CaptureThread.trt_yolo, CaptureThread.vis, frame)
 
     def detectObjects(self, trt_yolo, vis, frame):   
         boxes, confs, clss = trt_yolo.detect(frame, 0.3)
@@ -51,33 +47,75 @@ class MultiCamera:
         if len(confs) > 0: 
             self.frame, (x_min, y_min, x_max, y_max) = vis.draw_bboxes(frame, boxes, confs, clss)
 
-realCam = MultiCamera(videoCapture)
-zoomCam = MultiCamera(cam)
+    def __stop__(self): 
+        self.stop = True
+        print("Da stop " + str(self.stop))
 
-count = time.time()
-while True:
-    if time.time() - count >= 20:
-        count = time.time()
+class MAIN_HANDLE(Ui_MainWindow):
+    def __init__(self):
+        self.setupUi(MainWindow)
+
+        #------------------add feature------------------#
+        self.signal = CameraSignal()
+        self.signal.changePixmap1.connect(self.update_frame1)
+        self.signal.changePixmap2.connect(self.update_frame2)
+
+        self.thread1 = CaptureThread('/dev/video0', self.signal)
+        self.thread2 = CaptureThread('/dev/video1', self.signal)
+        self.thread1.start()
+        self.thread2.start()
+        MainWindow.closeEvent = self.closeEvent
+
+        # Update CPU and T
+        self.timer = QtCore.QTimer()
+        self.timer.timeout.connect(self.update_CPU)
+        self.timer.timeout.connect(self.update_Temp)
+        self.timer.start(5000)
+
+    def update_frame1(self, frame):
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        image = QImage(frame, frame.shape[1], frame.shape[0], QImage.Format_RGB888)
+        self.labelText1.setPixmap(QPixmap.fromImage(image))
+    
+    def update_frame2(self, frame):
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        image = QImage(frame, frame.shape[1], frame.shape[0], QImage.Format_RGB888)
+        self.labelText2.setPixmap(QPixmap.fromImage(image))
+
+    def closeEvent(self, event):
+        self.thread1.__stop__()
+        self.thread2.__stop__()
+        self.timer.stop()
+        self.signal.disconnect()
+        self.signal = None
+        event.accept()
+
+    def update_CPU(self):
+        per_cpu_percent = psutil.cpu_percent(percpu=True)
+        for i, cpu_percent in enumerate(per_cpu_percent):
+            if i == 0:
+                self.labelCPU1.setText("CPU1: " + str(cpu_percent) + "%")
+            if i == 1:
+                self.labelCPU2.setText("CPU2: " + str(cpu_percent) + "%")
+            if i == 2:
+                self.labelCPU3.setText("CPU3: " + str(cpu_percent) + "%")
+            if i == 3:
+                self.labelCPU4.setText("CPU4: " + str(cpu_percent) + "%")
+
+    def update_Temp(self):
         current_time = datetime.datetime.now().time()
-        print("===========================")
-        print("TIME = " + str(current_time.strftime("%H:%M:%S")))
+        self.labelREALTIME.setText("TIME = " + str(current_time.strftime("%H:%M:%S")))
         with open("/sys/devices/virtual/thermal/thermal_zone1/temp", "r") as temp_file:
-            print("CPU: " + str(int(temp_file.read().strip())/1000))
+            self.labelTEMP1.setText("CPU: " + str(int(temp_file.read().strip())/1000))
         with open("/sys/devices/virtual/thermal/thermal_zone2/temp", "r") as temp_file:
-            print("GPU: " + str(int(temp_file.read().strip())/1000))
+            self.labelTEMP2.setText("GPU: " + str(int(temp_file.read().strip())/1000))
         with open("/sys/devices/virtual/thermal/thermal_zone5/temp", "r") as temp_file:
-            print("Thermal Fan: " + str(int(temp_file.read().strip())/1000))
-
-    realCam.getFrame(realCam.source)
-    cv2.imshow("Black Cam", realCam.frame)
-    cv2.moveWindow("Black Cam", 0, 0)
-
-    zoomCam.getFrame(zoomCam.source)
-    cv2.imshow("White Cam", zoomCam.frame)
-    cv2.moveWindow("White Cam", 650, 0)
+            self.labelTEMP3.setText("Thermal Fan: " + str(int(temp_file.read().strip())/1000))
 
 
-
-    if cv2.waitKey(1) == ord('q'): #check Button 'q' in 1 milis and do st...
-        break
-            
+if __name__ == "__main__":
+    app = QtWidgets.QApplication(sys.argv)
+    MainWindow = QtWidgets.QMainWindow()
+    ui = MAIN_HANDLE()
+    MainWindow.show()
+    sys.exit(app.exec_())
