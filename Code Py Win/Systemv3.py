@@ -11,6 +11,8 @@ class MAIN_HANDLE(Ui_MainWindow):
     cls_dict = get_cls_dict(numClass)
     vis = BBoxVisualization(cls_dict)
     trt_yolo = TrtYOLO('obj', numClass, False)
+    camID1 = "White"
+    camID2 = "Black"
     def __init__(self):
         self.setupUi(MainWindow)
 
@@ -29,16 +31,20 @@ class MAIN_HANDLE(Ui_MainWindow):
         self.timer.timeout.connect(self.update_Temp)
         self.timer.start(5000)
 
+        #Flag "Fire"
+        self.fire = False
+        self.counter = 0  #Time to end notification
+
     def update_frame1(self):
         ret, frame = MAIN_HANDLE.cap1.read()
-        self.detectObjects(MAIN_HANDLE.trt_yolo, MAIN_HANDLE.vis, frame)
+        self.detectObjects(MAIN_HANDLE.trt_yolo, MAIN_HANDLE.vis, frame, MAIN_HANDLE.camID1)
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         image = QImage(frame, frame.shape[1], frame.shape[0], QImage.Format_RGB888)
         self.labelText1.setPixmap(QPixmap.fromImage(image))
     
     def update_frame2(self):
         ret, frame = MAIN_HANDLE.cap2.read()
-        self.detectObjects(MAIN_HANDLE.trt_yolo, MAIN_HANDLE.vis, frame)
+        self.detectObjects(MAIN_HANDLE.trt_yolo, MAIN_HANDLE.vis, frame, MAIN_HANDLE.camID2)
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         image = QImage(frame, frame.shape[1], frame.shape[0], QImage.Format_RGB888)
         self.labelText2.setPixmap(QPixmap.fromImage(image))
@@ -70,7 +76,7 @@ class MAIN_HANDLE(Ui_MainWindow):
         with open("/sys/devices/virtual/thermal/thermal_zone5/temp", "r") as temp_file:
             self.labelTEMP3.setText("Thermal Fan: " + str(int(temp_file.read().strip())/1000))
 
-    def detectObjects(self, trt_yolo, vis, frame):  
+    def detectObjects(self, trt_yolo, vis, frame, camID):  
         boxes, confs, clss = trt_yolo.detect(frame, 0.3)
         #Precise poison filter (> 0.6)
         indexDel = []
@@ -82,6 +88,18 @@ class MAIN_HANDLE(Ui_MainWindow):
         clss = np.delete(clss, indexDel)
         if len(confs) > 0: 
             self.frame, (x_min, y_min, x_max, y_max) = vis.draw_bboxes(frame, boxes, confs, clss)
+            
+            #Detected the fire
+            self.fire = True
+            print(camID + " Detect the Fire")
+            self.counter = time.time()
+        if self.fire:
+            if time.time() - self.counter >= 5:
+                self.fire = False
+                print(camID + " Done!")
+
+            else:
+                print(camID + " Timer ==> 5s")
 
 
 if __name__ == "__main__":
