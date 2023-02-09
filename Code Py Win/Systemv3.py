@@ -15,14 +15,6 @@ class MAIN_HANDLE(Ui_MainWindow):
         self.setupUi(MainWindow)
 
         #------------------add feature------------------#
-        # self.signal = CameraSignal()
-        # self.signal.changePixmap1.connect(self.update_frame1)
-        # self.signal.changePixmap2.connect(self.update_frame2)
-
-        # self.thread1 = CaptureThread('/dev/video0', self.signal)
-        # self.thread2 = CaptureThread('/dev/video1', self.signal)
-        # self.thread1.start()
-        # self.thread2.start()
         self.timer1 = QtCore.QTimer()
         self.timer1.timeout.connect(self.update_frame1)
         self.timer1.timeout.connect(self.update_frame2)
@@ -30,6 +22,8 @@ class MAIN_HANDLE(Ui_MainWindow):
         MainWindow.closeEvent = self.closeEvent
 
         # Update CPU and T
+        self.update_CPU()
+        self.update_Temp()
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(self.update_CPU)
         self.timer.timeout.connect(self.update_Temp)
