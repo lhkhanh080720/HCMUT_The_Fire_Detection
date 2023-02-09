@@ -31,10 +31,6 @@ class MAIN_HANDLE(Ui_MainWindow):
         self.timer.timeout.connect(self.update_Temp)
         self.timer.start(5000)
 
-        #Flag "Fire"
-        self.fire = False
-        self.counter = 0  #Time to end notification
-
     def update_frame1(self):
         ret, frame = MAIN_HANDLE.cap1.read()
         self.detectObjects(MAIN_HANDLE.trt_yolo, MAIN_HANDLE.vis, frame, MAIN_HANDLE.camID1)
@@ -88,18 +84,7 @@ class MAIN_HANDLE(Ui_MainWindow):
         clss = np.delete(clss, indexDel)
         if len(confs) > 0: 
             self.frame, (x_min, y_min, x_max, y_max) = vis.draw_bboxes(frame, boxes, confs, clss)
-            
-            #Detected the fire
-            self.fire = True
-            print(camID + " Detect the Fire")
-            self.counter = time.time()
-        if self.fire:
-            if time.time() - self.counter >= 5:
-                self.fire = False
-                print(camID + " Done!")
-
-            else:
-                print(camID + " Timer ==> 5s")
+        
 
 
 if __name__ == "__main__":
