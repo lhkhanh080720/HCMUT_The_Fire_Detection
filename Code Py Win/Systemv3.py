@@ -1,74 +1,32 @@
 # ===============pyuic5 -x mainv1.ui -o mainv1.py===============
-# [TensorRT] WARNING: Using an engine plan file across different models of devices 
-# is not recommended and is likely to affect performance or even cause errors.
-# [TensorRT] ERROR: ../rtSafe/cuda/reformat.cu (925) - Cuda Error in NCHWToNCHHW2: 400 (invalid resource handle)
-# [TensorRT] ERROR: FAILED_EXECUTION: std::exception
-
 from libs import *
 from threading import Lock
 
-class CameraSignal(QtCore.QObject):
-    changePixmap1 = QtCore.pyqtSignal(np.ndarray)
-    changePixmap2 = QtCore.pyqtSignal(np.ndarray)
-
-class CaptureThread(threading.Thread):
+class MAIN_HANDLE(Ui_MainWindow):
+    camera_id1 = "/dev/video0"
+    cap1 = cv2.VideoCapture(camera_id1, cv2.CAP_V4L2)
+    camera_id2 = "/dev/video1"
+    cap2 = cv2.VideoCapture(camera_id2, cv2.CAP_V4L2)
     numClass = 2     #The numbers of classes
     cls_dict = get_cls_dict(numClass)
     vis = BBoxVisualization(cls_dict)
     trt_yolo = TrtYOLO('obj', numClass, False)
-
-    def __init__(self, camera_id, signal):
-        threading.Thread.__init__(self)
-        self.camera_id = camera_id
-        self.signal = signal
-        self.cap = cv2.VideoCapture(self.camera_id, cv2.CAP_V4L2)
-        self.stop = False
-
-    def run(self):
-        while not self.stop:
-            self.cap.grab()
-            ret, frame = self.cap.retrieve()
-            self.detectObjects(CaptureThread.trt_yolo, CaptureThread.vis, frame)
-            # ret, frame = self.cap.read()
-            if self.camera_id == '/dev/video0':
-                self.signal.changePixmap1.emit(frame)
-            elif self.camera_id == '/dev/video1':
-                self.signal.changePixmap2.emit(frame)
-
-    def detectObjects(self, trt_yolo, vis, frame):  
-        boxes, confs, clss = trt_yolo.detect(frame, 0.3)
-        print("1")
-        #Precise poison filter (> 0.6)
-        indexDel = []
-        for index, value in enumerate(confs):
-            if value <= 0.7:
-                indexDel.append(index)
-        print("2")
-        boxes = np.delete(boxes, indexDel, 0)
-        confs = np.delete(confs, indexDel)
-        clss = np.delete(clss, indexDel)
-        print("3")
-        if len(confs) > 0: 
-            self.frame, (x_min, y_min, x_max, y_max) = vis.draw_bboxes(frame, boxes, confs, clss)
-        print("4")
-
-    def __stop__(self): 
-        self.stop = True
-        print("Da stop " + str(self.stop))
-
-class MAIN_HANDLE(Ui_MainWindow):
     def __init__(self):
         self.setupUi(MainWindow)
 
         #------------------add feature------------------#
-        self.signal = CameraSignal()
-        self.signal.changePixmap1.connect(self.update_frame1)
-        self.signal.changePixmap2.connect(self.update_frame2)
+        # self.signal = CameraSignal()
+        # self.signal.changePixmap1.connect(self.update_frame1)
+        # self.signal.changePixmap2.connect(self.update_frame2)
 
-        self.thread1 = CaptureThread('/dev/video0', self.signal)
-        self.thread2 = CaptureThread('/dev/video1', self.signal)
-        self.thread1.start()
-        self.thread2.start()
+        # self.thread1 = CaptureThread('/dev/video0', self.signal)
+        # self.thread2 = CaptureThread('/dev/video1', self.signal)
+        # self.thread1.start()
+        # self.thread2.start()
+        self.timer1 = QtCore.QTimer()
+        self.timer1.timeout.connect(self.update_frame1)
+        self.timer1.timeout.connect(self.update_frame2)
+        self.timer1.start(1)
         MainWindow.closeEvent = self.closeEvent
 
         # Update CPU and T
@@ -77,22 +35,23 @@ class MAIN_HANDLE(Ui_MainWindow):
         self.timer.timeout.connect(self.update_Temp)
         self.timer.start(5000)
 
-    def update_frame1(self, frame):
+    def update_frame1(self):
+        ret, frame = MAIN_HANDLE.cap1.read()
+        self.detectObjects(MAIN_HANDLE.trt_yolo, MAIN_HANDLE.vis, frame)
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         image = QImage(frame, frame.shape[1], frame.shape[0], QImage.Format_RGB888)
         self.labelText1.setPixmap(QPixmap.fromImage(image))
     
-    def update_frame2(self, frame):
+    def update_frame2(self):
+        ret, frame = MAIN_HANDLE.cap2.read()
+        self.detectObjects(MAIN_HANDLE.trt_yolo, MAIN_HANDLE.vis, frame)
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         image = QImage(frame, frame.shape[1], frame.shape[0], QImage.Format_RGB888)
         self.labelText2.setPixmap(QPixmap.fromImage(image))
 
     def closeEvent(self, event):
-        self.thread1.__stop__()
-        self.thread2.__stop__()
         self.timer.stop()
-        self.signal.disconnect()
-        self.signal = None
+        self.timer1.stop()
         event.accept()
 
     def update_CPU(self):
@@ -116,6 +75,19 @@ class MAIN_HANDLE(Ui_MainWindow):
             self.labelTEMP2.setText("GPU: " + str(int(temp_file.read().strip())/1000))
         with open("/sys/devices/virtual/thermal/thermal_zone5/temp", "r") as temp_file:
             self.labelTEMP3.setText("Thermal Fan: " + str(int(temp_file.read().strip())/1000))
+
+    def detectObjects(self, trt_yolo, vis, frame):  
+        boxes, confs, clss = trt_yolo.detect(frame, 0.3)
+        #Precise poison filter (> 0.6)
+        indexDel = []
+        for index, value in enumerate(confs):
+            if value <= 0.7:
+                indexDel.append(index)
+        boxes = np.delete(boxes, indexDel, 0)
+        confs = np.delete(confs, indexDel)
+        clss = np.delete(clss, indexDel)
+        if len(confs) > 0: 
+            self.frame, (x_min, y_min, x_max, y_max) = vis.draw_bboxes(frame, boxes, confs, clss)
 
 
 if __name__ == "__main__":
