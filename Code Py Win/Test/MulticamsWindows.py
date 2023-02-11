@@ -14,6 +14,8 @@ class MultiCamera:
     cls_dict = get_cls_dict(numClass)
     vis = BBoxVisualization(cls_dict)
     trt_yolo = TrtYOLO('obj', numClass, False)
+    print(vis)
+    print(trt_yolo)
 
     def __init__(self, para_source) -> None:
         self.source = para_source
