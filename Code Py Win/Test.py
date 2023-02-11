@@ -314,24 +314,19 @@ class TrtYOLO(object):
         """Detect objects in the input image."""
         letter_box = self.letter_box if letter_box is None else letter_box
         img_resized = _preprocess_yolo(img, self.input_shape, letter_box)
-        print("========1")
         # Set host input to the image. The do_inference() function
         # will copy the input to the GPU before executing.
         self.inputs[0].host = np.ascontiguousarray(img_resized)
-        print("========2")
         if self.cuda_ctx:
             self.cuda_ctx.push()
-        print("========3")
         trt_outputs = self.inference_fn(
             context=self.context,
             bindings=self.bindings,
             inputs=self.inputs,
             outputs=self.outputs,
             stream=self.stream)
-        print("========4")
         if self.cuda_ctx:
             self.cuda_ctx.pop()
-        print("========5")
         boxes, scores, classes = _postprocess_yolo(
             trt_outputs, img.shape[1], img.shape[0], conf_th,
             nms_threshold=0.5, input_shape=self.input_shape,
