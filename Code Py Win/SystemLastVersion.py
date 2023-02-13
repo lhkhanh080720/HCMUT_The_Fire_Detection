@@ -4,6 +4,18 @@ from PyQt5.QtWidgets import (QWidget, QLabel, QVBoxLayout, QGridLayout, QSizePol
 from PyQt5.QtCore import (QThread, pyqtSignal, pyqtSlot, Qt, QSize, QTimer, QTime, QDate, QObject, QEvent)
 from PyQt5.QtGui import (QImage, QPixmap, QFont, QIcon, QColor)
 
+import Jetson.GPIO as GPIO
+
+GPIO.setmode(GPIO.BOARD)
+LedW = 18
+LedB = 12
+GPIO.setup(LedW, GPIO.OUT, initial=GPIO.HIGH) # led to noti fire in Cam White
+GPIO.setup(LedB, GPIO.OUT, initial=GPIO.HIGH) # led to noti fire in Cam Black
+time.sleep(2)
+GPIO.output(LedW, GPIO.LOW)
+GPIO.output(LedB, GPIO.LOW)
+
+
 class MAIN_HANDLE(QMainWindow):
     camID1 = "Cam White"
     cap1 = cv2.VideoCapture("/dev/video0", cv2.CAP_V4L2)
@@ -13,10 +25,6 @@ class MAIN_HANDLE(QMainWindow):
 
     #------for func Notice------
     timeOut = 3
-    counterFire = 0
-    notiFire = False
-    noti0FireMo = False
-    noti0Fire = False
 
     def __init__(self):
         super().__init__()
@@ -32,8 +40,11 @@ class MAIN_HANDLE(QMainWindow):
         self.timer1 = QtCore.QTimer()
         self.timer1.timeout.connect(self.Cam1.update_frame)
         self.timer1.timeout.connect(self.Cam2.update_frame)
-        self.timer1.timeout.connect(self.check_Fire)
         self.timer1.start(1)
+
+        self.timer2 = QtCore.QTimer()
+        self.timer2.timeout.connect(self.check_Fire)
+        self.timer2.start(1)
 
         # Update CPU and T
         self.update_CPU()
@@ -44,26 +55,37 @@ class MAIN_HANDLE(QMainWindow):
         self.timer.start(5000)
     
     def check_Fire(self):
-        if self.Cam1.flag or self.Cam2.flag:
-            if not MAIN_HANDLE.notiFire:
-                print("Detected the fire")
-                MAIN_HANDLE.notiFire = True
-                MAIN_HANDLE.noti0FireMo = False
-                MAIN_HANDLE.noti0Fire = False
-            MAIN_HANDLE.counterFire = time.time()
-        elif not self.Cam1.flag and not self.Cam2.flag:
-            if time.time() - MAIN_HANDLE.counterFire <= MAIN_HANDLE.timeOut:
-                if not MAIN_HANDLE.noti0FireMo:
-                    print("No Fire in the Frame")
-                    MAIN_HANDLE.notiFire = False
-                    MAIN_HANDLE.noti0FireMo = True
-                    MAIN_HANDLE.noti0Fire = False
-            else:
-                if not MAIN_HANDLE.noti0Fire:
-                    print("No Fire in the System")
-                    MAIN_HANDLE.notiFire = False
-                    MAIN_HANDLE.noti0FireMo = False
-                    MAIN_HANDLE.noti0Fire = True           
+        # Detected the Fire
+        if self.Cam1.flag: 
+            self.Cam1.countFire = time.time()
+            if not self.Cam1.flagFire:
+                print("Cam1: Fire!")
+                GPIO.output(LedW, GPIO.HIGH)
+                self.Cam1.flagFire = True
+                self.Cam1.flag0Fire = False
+        elif time.time() - self.Cam1.countFire > MAIN_HANDLE.timeOut:
+            if not self.Cam1.flag0Fire:
+                print("Cam1: no Fire")
+                self.Cam1.flagFire = False
+                GPIO.output(LedW, GPIO.LOW)
+                self.Cam1.flag0Fire = True
+                self.Cam1.flag = False
+
+        if self.Cam2.flag: 
+            self.Cam2.countFire = time.time()
+            if not self.Cam2.flagFire:
+                print("Cam2: Fire!")
+                GPIO.output(LedB, GPIO.HIGH)
+                self.Cam2.flagFire = True
+                self.Cam2.flag0Fire = False
+        elif time.time() - self.Cam2.countFire > MAIN_HANDLE.timeOut:
+            if not self.Cam2.flag0Fire:
+                print("Cam2: no Fire")
+                self.Cam2.flagFire = False
+                GPIO.output(LedB, GPIO.LOW)
+                self.Cam2.flag0Fire = True
+                self.Cam2.flag = False
+                
 
     def clear(self): pass
 
@@ -73,6 +95,8 @@ class MAIN_HANDLE(QMainWindow):
         if ret == QMessageBox.Yes:
             self.timer.stop()
             self.timer1.stop()
+            self.timer2.stop()
+            GPIO.cleanup()
             event.accept()
         else:
             event.ignore()
@@ -110,6 +134,9 @@ class Camera:
         self.output = output
         self.camID = camID
         self.flag = False
+        self.flagFire = False
+        self.flag0Fire = False
+        self.countFire = 0
 
     def update_frame(self):          
         ret, self.frame = self.source.read()
