@@ -9,22 +9,30 @@ import Jetson.GPIO as GPIO
 GPIO.setmode(GPIO.BOARD)
 LedW = 18
 LedB = 12
-GPIO.setup(LedW, GPIO.OUT, initial=GPIO.HIGH) # led to noti fire in Cam White
-GPIO.setup(LedB, GPIO.OUT, initial=GPIO.HIGH) # led to noti fire in Cam Black
-time.sleep(2)
-GPIO.output(LedW, GPIO.LOW)
-GPIO.output(LedB, GPIO.LOW)
+GPIO.setup(LedW, GPIO.OUT, initial=GPIO.LOW) # led to noti fire in Cam White
+GPIO.setup(LedB, GPIO.OUT, initial=GPIO.LOW) # led to noti fire in Cam Black
+
+output_pin1 = 32 #BlackCam
+output_pin2 = 33 #WhiteCam
+GPIO.setup(output_pin1, GPIO.OUT, initial=GPIO.HIGH)
+p1 = GPIO.PWM(output_pin1, 50)
+GPIO.setup(output_pin2, GPIO.OUT, initial=GPIO.HIGH)
+p2 = GPIO.PWM(output_pin2, 50)
+p1.start(6.5)
+p2.start(6.5)
 
 
 class MAIN_HANDLE(QMainWindow):
     camID1 = "Cam White"
-    cap1 = cv2.VideoCapture("/dev/video0", cv2.CAP_V4L2)
+    cap1 = cv2.VideoCapture("/dev/video1", cv2.CAP_V4L2)
 
     camID2 = "Cam Black"
-    cap2 = cv2.VideoCapture("/dev/video1", cv2.CAP_V4L2)
+    cap2 = cv2.VideoCapture("/dev/video0", cv2.CAP_V4L2)
 
     #------for func Notice------
     timeOut = 3
+    valueAngle1 = 6.5
+    valueAngle2 = 6.5
 
     def __init__(self):
         super().__init__()
@@ -36,23 +44,23 @@ class MAIN_HANDLE(QMainWindow):
         self.Cam2 = Camera(MAIN_HANDLE.cap2, self.uic.labelText2, MAIN_HANDLE.camID2)
         self.Cam1.update_frame()
         self.Cam2.update_frame()
-
+        # Update Camera
         self.timer1 = QtCore.QTimer()
         self.timer1.timeout.connect(self.Cam1.update_frame)
         self.timer1.timeout.connect(self.Cam2.update_frame)
         self.timer1.start(1)
-
+        # Detect the Fire
         self.timer2 = QtCore.QTimer()
         self.timer2.timeout.connect(self.check_Fire)
         self.timer2.start(1)
-
-        # Update CPU and T
-        self.update_CPU()
-        self.update_Temp()
-        self.timer = QtCore.QTimer()
-        self.timer.timeout.connect(self.update_CPU)
-        self.timer.timeout.connect(self.update_Temp)
-        self.timer.start(5000)
+        # Move Camera1:
+        self.timer3 = QtCore.QTimer()
+        self.timer3.timeout.connect(self.move_camera1)
+        self.timer3.start(15000)
+        # Move Camera2:
+        self.timer4 = QtCore.QTimer()
+        self.timer4.timeout.connect(self.move_camera2)
+        self.timer4.start(15000)
     
     def check_Fire(self):
         # Detected the Fire
@@ -63,6 +71,7 @@ class MAIN_HANDLE(QMainWindow):
                 GPIO.output(LedW, GPIO.HIGH)
                 self.Cam1.flagFire = True
                 self.Cam1.flag0Fire = False
+                self.timer4.stop()
         elif time.time() - self.Cam1.countFire > MAIN_HANDLE.timeOut:
             if not self.Cam1.flag0Fire:
                 print("Cam1: no Fire")
@@ -70,6 +79,7 @@ class MAIN_HANDLE(QMainWindow):
                 GPIO.output(LedW, GPIO.LOW)
                 self.Cam1.flag0Fire = True
                 self.Cam1.flag = False
+                self.timer4.start()
 
         if self.Cam2.flag: 
             self.Cam2.countFire = time.time()
@@ -78,6 +88,7 @@ class MAIN_HANDLE(QMainWindow):
                 GPIO.output(LedB, GPIO.HIGH)
                 self.Cam2.flagFire = True
                 self.Cam2.flag0Fire = False
+                self.timer3.stop()
         elif time.time() - self.Cam2.countFire > MAIN_HANDLE.timeOut:
             if not self.Cam2.flag0Fire:
                 print("Cam2: no Fire")
@@ -85,7 +96,7 @@ class MAIN_HANDLE(QMainWindow):
                 GPIO.output(LedB, GPIO.LOW)
                 self.Cam2.flag0Fire = True
                 self.Cam2.flag = False
-                
+                self.timer3.start()
 
     def clear(self): pass
 
@@ -93,35 +104,34 @@ class MAIN_HANDLE(QMainWindow):
         ret = QMessageBox.information(self, "Quit Program", # title 
                                       "Are you sure to Quit?", QMessageBox.Yes | QMessageBox.No)
         if ret == QMessageBox.Yes:
-            self.timer.stop()
             self.timer1.stop()
             self.timer2.stop()
+            self.timer3.stop()
+            self.timer4.stop()
             GPIO.cleanup()
             event.accept()
         else:
             event.ignore()
 
-    def update_CPU(self):
-        per_cpu_percent = psutil.cpu_percent(percpu=True)
-        for i, cpu_percent in enumerate(per_cpu_percent):
-            if i == 0:
-                self.uic.labelCPU1.setText("CPU1: " + str(cpu_percent) + "%")
-            if i == 1:
-                self.uic.labelCPU2.setText("CPU2: " + str(cpu_percent) + "%")
-            if i == 2:
-                self.uic.labelCPU3.setText("CPU3: " + str(cpu_percent) + "%")
-            if i == 3:
-                self.uic.labelCPU4.setText("CPU4: " + str(cpu_percent) + "%")
+    def move_camera1(self):
+        p1.start(MAIN_HANDLE.valueAngle1)
+        MAIN_HANDLE.valueAngle1 += 0.5
+        if MAIN_HANDLE.valueAngle1 > 9:
+            MAIN_HANDLE.valueAngle1 = 6.5
+            p1.start(MAIN_HANDLE.valueAngle1)
+            self.timer3.start(15000)
+        else:
+            self.timer3.start(5000)
 
-    def update_Temp(self):
-        current_time = datetime.datetime.now().time()
-        self.uic.labelREALTIME.setText("TIME = " + str(current_time.strftime("%H:%M:%S")))
-        with open("/sys/devices/virtual/thermal/thermal_zone1/temp", "r") as temp_file:
-            self.uic.labelTEMP1.setText("CPU: " + str(int(temp_file.read().strip())/1000))
-        with open("/sys/devices/virtual/thermal/thermal_zone2/temp", "r") as temp_file:
-            self.uic.labelTEMP2.setText("GPU: " + str(int(temp_file.read().strip())/1000))
-        with open("/sys/devices/virtual/thermal/thermal_zone5/temp", "r") as temp_file:
-            self.uic.labelTEMP3.setText("Thermal Fan: " + str(int(temp_file.read().strip())/1000))
+    def move_camera2(self):
+        p2.start(MAIN_HANDLE.valueAngle2)
+        MAIN_HANDLE.valueAngle2 += 0.5
+        if MAIN_HANDLE.valueAngle2 > 9:
+            MAIN_HANDLE.valueAngle2 = 6.5
+            p2.start(MAIN_HANDLE.valueAngle2)
+            self.timer4.start(15000)
+        else:
+            self.timer4.start(5000)
 
 
 numClass = 2     #The numbers of classes
