@@ -1,5 +1,5 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
-from mainv1 import Ui_MainWindow
+from GUI.ui_interface import Ui_MainWindow
 from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel
 from PyQt5.QtGui import QImage, QPixmap
 import sys

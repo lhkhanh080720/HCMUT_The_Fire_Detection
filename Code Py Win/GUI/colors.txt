@@ -1,0 +1,6 @@
+Dark: #16191d
+Acccent_1: #1232a
+Accenct_2: #2c313c
+Accent_3: #343b47
+Text_1: #fff
+Text_2: #838ea2

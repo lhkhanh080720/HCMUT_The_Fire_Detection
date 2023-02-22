@@ -1,4 +1,4 @@
-# ===============pyuic5 -x mainv1.ui -o mainv1.py===============
+# ===============pyuic5 -x ui_interface.ui -o ui_interface.py===============
 from libs import *
 from PyQt5.QtWidgets import (QWidget, QLabel, QVBoxLayout, QGridLayout, QSizePolicy, QDialog, QPushButton, QTableWidget, QTableWidgetItem, QAbstractItemView, QMessageBox, QApplication)
 from PyQt5.QtCore import (QThread, pyqtSignal, pyqtSlot, Qt, QSize, QTimer, QTime, QDate, QObject, QEvent)
@@ -21,7 +21,6 @@ p2 = GPIO.PWM(output_pin2, 50)
 p1.start(6.5)
 p2.start(6.5)
 
-
 class MAIN_HANDLE(QMainWindow):
     camID1 = "Cam White"
     cap1 = cv2.VideoCapture("/dev/video1", cv2.CAP_V4L2)
@@ -34,14 +33,23 @@ class MAIN_HANDLE(QMainWindow):
     valueAngle1 = 6.5
     valueAngle2 = 6.5
 
+    statusWarning = False
+
     def __init__(self):
         super().__init__()
         self.uic = Ui_MainWindow()
         self.uic.setupUi(self)
 
-        #------------------add feature------------------#
-        self.Cam1 = Camera(MAIN_HANDLE.cap1, self.uic.labelText1, MAIN_HANDLE.camID1)    
-        self.Cam2 = Camera(MAIN_HANDLE.cap2, self.uic.labelText2, MAIN_HANDLE.camID2)
+        #Add
+        #=================Stack Widget=================#
+        self.uic.mainFrame.setCurrentWidget(self.uic.homeF)
+
+        self.uic.menuBtn.clicked.connect(self.show2Cam)
+        self.uic.cam1Btn.clicked.connect(self.showCam1)
+        self.uic.cam2Btn.clicked.connect(self.showCam2)
+        #=================Add feature=================#
+        self.Cam1 = Camera(MAIN_HANDLE.cap1, self.uic.label_3, MAIN_HANDLE.camID1)    
+        self.Cam2 = Camera(MAIN_HANDLE.cap2, self.uic.label_4, MAIN_HANDLE.camID2)
         self.Cam1.update_frame()
         self.Cam2.update_frame()
         # Update Camera
@@ -61,12 +69,53 @@ class MAIN_HANDLE(QMainWindow):
         self.timer4 = QtCore.QTimer()
         self.timer4.timeout.connect(self.move_camera2)
         self.timer4.start(15000)
-    
+        # Feature for 2 widget Cam1 and Cam2
+        self.Cam3 = Camera(MAIN_HANDLE.cap1, self.uic.label_5, MAIN_HANDLE.camID1)
+        self.Cam4 = Camera(MAIN_HANDLE.cap2, self.uic.label_6, MAIN_HANDLE.camID2)
+        self.timer5 = QtCore.QTimer()
+        self.timer5.timeout.connect(self.Cam3.update_frame)
+        self.timer6 = QtCore.QTimer()
+        self.timer6.timeout.connect(self.Cam4.update_frame)
+        # Warning in system
+        self.timer7 = QtCore.QTimer()
+        self.timer7.timeout.connect(self.warningFire)
+
+    # Widget 1: Show 2 camera
+    def show2Cam(self):
+        self.uic.mainFrame.setCurrentWidget(self.uic.homeF)
+        self.uic.menuBtn.setStyleSheet("background-color: #1f232a;")
+        self.uic.cam1Btn.setStyleSheet("background-color: #16191d;")
+        self.uic.cam2Btn.setStyleSheet("background-color: #16191d;")
+        self.timer1.start(1)
+        
+    # Widget 2: Show camera 1
+    def showCam1(self):
+        self.uic.mainFrame.setCurrentWidget(self.uic.cam1F)
+        self.uic.menuBtn.setStyleSheet("background-color: #16191d;")
+        self.uic.cam1Btn.setStyleSheet("background-color: #1f232a;")
+        self.uic.cam2Btn.setStyleSheet("background-color: #16191d;")
+        self.timer5.start(1)
+
+        self.timer1.stop()
+        self.timer6.stop()
+    # Widget 3: Show camera 2
+    def showCam2(self):
+        self.uic.mainFrame.setCurrentWidget(self.uic.cam2F)
+        self.uic.menuBtn.setStyleSheet("background-color: #16191d;")
+        self.uic.cam1Btn.setStyleSheet("background-color: #16191d;")
+        self.uic.cam2Btn.setStyleSheet("background-color: #1f232a;")
+        self.timer6.start(1)
+        
+        self.timer1.stop()
+        self.timer5.stop()
+    # Detected the Fire
     def check_Fire(self):
-        # Detected the Fire
         if self.Cam1.flag: 
             self.Cam1.countFire = time.time()
             if not self.Cam1.flagFire:
+                if not self.timer7.isActive():
+                    print("Timer is running")
+                    self.timer7.start(700)
                 print("Cam1: Fire!")
                 GPIO.output(LedW, GPIO.HIGH)
                 self.Cam1.flagFire = True
@@ -84,6 +133,9 @@ class MAIN_HANDLE(QMainWindow):
         if self.Cam2.flag: 
             self.Cam2.countFire = time.time()
             if not self.Cam2.flagFire:
+                if not self.timer7.isActive():
+                    print("Timer is running")
+                    self.timer7.start(700)
                 print("Cam2: Fire!")
                 GPIO.output(LedB, GPIO.HIGH)
                 self.Cam2.flagFire = True
@@ -97,22 +149,10 @@ class MAIN_HANDLE(QMainWindow):
                 self.Cam2.flag0Fire = True
                 self.Cam2.flag = False
                 self.timer3.start()
-
-    def clear(self): pass
-
-    def closeEvent(self, event):
-        ret = QMessageBox.information(self, "Quit Program", # title 
-                                      "Are you sure to Quit?", QMessageBox.Yes | QMessageBox.No)
-        if ret == QMessageBox.Yes:
-            self.timer1.stop()
-            self.timer2.stop()
-            self.timer3.stop()
-            self.timer4.stop()
-            GPIO.cleanup()
-            event.accept()
-        else:
-            event.ignore()
-
+        if self.Cam1.flag0Fire and self.Cam2.flag0Fire:
+            self.timer7.stop()
+            self.uic.mainFrame.setStyleSheet("background-color: #1f232a;")
+    # Control servo to move cam
     def move_camera1(self):
         p1.start(MAIN_HANDLE.valueAngle1)
         MAIN_HANDLE.valueAngle1 += 0.5
@@ -133,7 +173,35 @@ class MAIN_HANDLE(QMainWindow):
         else:
             self.timer4.start(5000)
 
+    def warningFire(self):
+        if not MAIN_HANDLE.statusWarning:
+            self.uic.mainFrame.setStyleSheet("background-color: rgb(255, 0, 0);")
+        elif MAIN_HANDLE.statusWarning:
+            self.uic.mainFrame.setStyleSheet("background-color: #1f232a;")
+        if not MAIN_HANDLE.statusWarning:
+            MAIN_HANDLE.statusWarning = True
+        elif MAIN_HANDLE.statusWarning:
+            MAIN_HANDLE.statusWarning = False
 
+    def clear(self): pass
+
+    def closeEvent(self, event):
+        # ret = QMessageBox.information(self, "Quit Program", # title 
+        #                               "Are you sure to Quit?", QMessageBox.Yes | QMessageBox.No)
+        # if ret == QMessageBox.Yes:
+        self.timer1.stop()
+        self.timer2.stop()
+        self.timer3.stop()
+        self.timer4.stop()
+        self.timer5.stop()
+        self.timer6.stop()
+        self.timer7.stop()
+        GPIO.cleanup()
+        event.accept()
+        # else:
+        #     event.ignore()
+
+# Class Camera
 numClass = 2     #The numbers of classes
 cls_dict = get_cls_dict(numClass)
 vis = BBoxVisualization(cls_dict)
@@ -171,7 +239,6 @@ class Camera:
             self.flag = True
         else:
             self.flag = False
-
 
 if __name__ == "__main__":
     import sys
