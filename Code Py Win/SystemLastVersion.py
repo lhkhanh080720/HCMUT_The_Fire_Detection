@@ -3,6 +3,7 @@ from libs import *
 from PyQt5.QtWidgets import (QWidget, QLabel, QVBoxLayout, QGridLayout, QSizePolicy, QDialog, QPushButton, QTableWidget, QTableWidgetItem, QAbstractItemView, QMessageBox, QApplication)
 from PyQt5.QtCore import (QThread, pyqtSignal, pyqtSlot, Qt, QSize, QTimer, QTime, QDate, QObject, QEvent)
 from PyQt5.QtGui import (QImage, QPixmap, QFont, QIcon, QColor)
+import datetime
 
 import Jetson.GPIO as GPIO
 
@@ -22,11 +23,11 @@ p1.start(6.5)
 p2.start(6.5)
 
 class MAIN_HANDLE(QMainWindow):
-    camID1 = "Cam White"
-    cap1 = cv2.VideoCapture("/dev/video1", cv2.CAP_V4L2)
+    camID1 = "WhiteCam"
+    cap1 = cv2.VideoCapture("/dev/video0", cv2.CAP_V4L2)
 
-    camID2 = "Cam Black"
-    cap2 = cv2.VideoCapture("/dev/video0", cv2.CAP_V4L2)
+    camID2 = "BlackCam"
+    cap2 = cv2.VideoCapture("/dev/video1", cv2.CAP_V4L2)
 
     #------for func Notice------
     timeOut = 3
@@ -98,6 +99,7 @@ class MAIN_HANDLE(QMainWindow):
 
         self.timer1.stop()
         self.timer6.stop()
+
     # Widget 3: Show camera 2
     def showCam2(self):
         self.uic.mainFrame.setCurrentWidget(self.uic.cam2F)
@@ -108,18 +110,24 @@ class MAIN_HANDLE(QMainWindow):
         
         self.timer1.stop()
         self.timer5.stop()
+
     # Detected the Fire
     def check_Fire(self):
-        if self.Cam1.flag: 
+        global outVid1, outVid2
+        if self.Cam1.flag:
             self.Cam1.countFire = time.time()
             if not self.Cam1.flagFire:
                 if not self.timer7.isActive():
                     print("Timer is running")
                     self.timer7.start(700)
+                titleVideo = datetime.datetime.now()
+                outVid1 = cv2.VideoWriter('Videos/WCam/' + str(titleVideo) + '.avi', cv2.VideoWriter_fourcc(*'XVID'), 30, (640, 480)) # Write the Video with fps = 21
+                print("Name video: ", str(titleVideo))
                 print("Cam1: Fire!")
                 GPIO.output(LedW, GPIO.HIGH)
                 self.Cam1.flagFire = True
-                self.Cam1.flag0Fire = False
+                self.Cam1.flag0Fire = False 
+                self.Cam1.saveCam = True
                 self.timer4.stop()
         elif time.time() - self.Cam1.countFire > MAIN_HANDLE.timeOut:
             if not self.Cam1.flag0Fire:
@@ -129,6 +137,8 @@ class MAIN_HANDLE(QMainWindow):
                 self.Cam1.flag0Fire = True
                 self.Cam1.flag = False
                 self.timer4.start()
+                self.Cam1.saveCam = False
+                outVid1.release()
 
         if self.Cam2.flag: 
             self.Cam2.countFire = time.time()
@@ -136,10 +146,14 @@ class MAIN_HANDLE(QMainWindow):
                 if not self.timer7.isActive():
                     print("Timer is running")
                     self.timer7.start(700)
+                titleVideo1 = datetime.datetime.now()
+                outVid2 = cv2.VideoWriter('Videos/BCam/' + str(titleVideo1) + '.avi', cv2.VideoWriter_fourcc(*'XVID'), 30, (640, 480)) # Write the Video with fps = 21
+                print("Name video: ", str(titleVideo1))
                 print("Cam2: Fire!")
                 GPIO.output(LedB, GPIO.HIGH)
                 self.Cam2.flagFire = True
                 self.Cam2.flag0Fire = False
+                self.Cam2.saveCam = True
                 self.timer3.stop()
         elif time.time() - self.Cam2.countFire > MAIN_HANDLE.timeOut:
             if not self.Cam2.flag0Fire:
@@ -149,9 +163,13 @@ class MAIN_HANDLE(QMainWindow):
                 self.Cam2.flag0Fire = True
                 self.Cam2.flag = False
                 self.timer3.start()
+                self.Cam2.saveCam = False
+                outVid2.release()
+
         if self.Cam1.flag0Fire and self.Cam2.flag0Fire:
             self.timer7.stop()
-            self.uic.mainFrame.setStyleSheet("background-color: #1f232a;")
+            self.uic.mainFrame.setStyleSheet("background-color: #1f232a;")      
+
     # Control servo to move cam
     def move_camera1(self):
         p1.start(MAIN_HANDLE.valueAngle1)
@@ -186,9 +204,6 @@ class MAIN_HANDLE(QMainWindow):
     def clear(self): pass
 
     def closeEvent(self, event):
-        # ret = QMessageBox.information(self, "Quit Program", # title 
-        #                               "Are you sure to Quit?", QMessageBox.Yes | QMessageBox.No)
-        # if ret == QMessageBox.Yes:
         self.timer1.stop()
         self.timer2.stop()
         self.timer3.stop()
@@ -198,8 +213,6 @@ class MAIN_HANDLE(QMainWindow):
         self.timer7.stop()
         GPIO.cleanup()
         event.accept()
-        # else:
-        #     event.ignore()
 
 # Class Camera
 numClass = 2     #The numbers of classes
@@ -207,6 +220,7 @@ cls_dict = get_cls_dict(numClass)
 vis = BBoxVisualization(cls_dict)
 trt_yolo = TrtYOLO('obj', numClass, False)
 class Camera:
+    global outVid1, outVid2
     def __init__(self, cam_link, output, camID):
         self.source = cam_link
         self.output = output
@@ -215,13 +229,24 @@ class Camera:
         self.flagFire = False
         self.flag0Fire = False
         self.countFire = 0
+        self.saveCam = False
 
     def update_frame(self):          
         ret, self.frame = self.source.read()
         self.detectObjects(self.frame)
         self.frame = cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB)
+        # add text feature
+        now = datetime.datetime.now()
+        self.text = self.camID + now.strftime("--%d/%m/%Y %H:%M")
+        cv2.putText(self.frame, self.text, (20, 470), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,0), 2)
         image = QImage(self.frame, self.frame.shape[1], self.frame.shape[0], QImage.Format_RGB888)
         self.output.setPixmap(QPixmap.fromImage(image))
+        # save frame
+        if self.saveCam:
+            if self.camID == "WhiteCam":
+                outVid1.write(cv2.cvtColor(self.frame, cv2.COLOR_RGB2BGR))
+            elif self.camID == "BlackCam":
+                outVid2.write(cv2.cvtColor(self.frame, cv2.COLOR_RGB2BGR))
 
     def detectObjects(self, frame):  
         global vis, trt_yolo
