@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Login Page{% endblock %}    <!-- Title -->
+
+{% block content %} 
+<h1>Detect the Fire</h1> 
+{% with messages = get_flashed_messages() %}
+    {% if messages %}
+        {% for m in messages %}
+            <p>{{m}}</p>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+
+{% endblock %}
