@@ -312,6 +312,13 @@ class MAIN_HANDLE(QMainWindow):
     def clear(self): pass
 
     def closeEvent(self, event):
+        GPIO.output(WaterW, GPIO.LOW)
+        GPIO.output(WaterB, GPIO.LOW)
+        GPIO.output(WaterW1, GPIO.LOW)
+        GPIO.output(WaterB1, GPIO.LOW)
+        GPIO.output(LedW, GPIO.LOW)
+        GPIO.output(LedB, GPIO.LOW)
+
         self.timer1.stop()
         self.timer2.stop()
         # self.timer3.stop()
@@ -342,7 +349,8 @@ class Camera:
 
     def update_frame(self):          
         ret, self.frame = self.source.read()
-        self.detectObjects(self.frame)
+        if not MAIN_HANDLE.flagControl:
+            self.detectObjects(self.frame)
         self.frame = cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB)
         # add text feature
         now = datetime.datetime.now()
@@ -353,6 +361,9 @@ class Camera:
             cv2.line(self.frame, (0, 236), (640, 250), (0, 255, 0), 2)
         elif self.camID == "BlackCam":
             cv2.line(self.frame, (0, 246), (640, 230), (0, 255, 0), 2)
+        
+        if MAIN_HANDLE.flagControl:
+            self.frame = cv2.resize(self.frame, (600, 450))
 
         image = QImage(self.frame, self.frame.shape[1], self.frame.shape[0], QImage.Format_RGB888)
         self.output.setPixmap(QPixmap.fromImage(image))
