@@ -261,13 +261,17 @@ class MAIN_HANDLE(QMainWindow):
 
         if self.aeraB:
             GPIO.output(LedB, GPIO.HIGH)
+            GPIO.output(LedB, GPIO.HIGH)
         else:
             GPIO.output(LedB, GPIO.LOW)
+            GPIO.output(LedB, GPIO.HIGH)
 
         if self.aeraW:
             GPIO.output(LedW, GPIO.HIGH)
+            GPIO.output(LedB, GPIO.HIGH)
         else:
             GPIO.output(LedW, GPIO.LOW)
+            GPIO.output(LedB, GPIO.HIGH)
 
     def clear(self): pass
 
