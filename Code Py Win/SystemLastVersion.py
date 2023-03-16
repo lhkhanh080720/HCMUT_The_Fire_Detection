@@ -54,6 +54,11 @@ class MAIN_HANDLE(QMainWindow):
     areaW = False
     aeraB = False
 
+    flagControl = False
+
+    statusBtnW = False
+    statusBtnB = False
+
     def __init__(self):
         super().__init__()
         self.uic = Ui_MainWindow()
@@ -64,8 +69,9 @@ class MAIN_HANDLE(QMainWindow):
         self.uic.mainFrame.setCurrentWidget(self.uic.homeF)
 
         self.uic.menuBtn.clicked.connect(self.show2Cam)
-        self.uic.cam1Btn.clicked.connect(self.showCam1)
-        self.uic.cam2Btn.clicked.connect(self.showCam2)
+        self.uic.cam1Btn.clicked.connect(self.settingsSystem)
+        self.uic.camWBtn.clicked.connect(self.camWBtnFc)
+        self.uic.camBBtn.clicked.connect(self.camBBtnFc)
         #=================Add feature=================#
         self.Cam1 = Camera(MAIN_HANDLE.cap1, self.uic.label_3, MAIN_HANDLE.camID1)    
         self.Cam2 = Camera(MAIN_HANDLE.cap2, self.uic.label_4, MAIN_HANDLE.camID2)
@@ -93,8 +99,7 @@ class MAIN_HANDLE(QMainWindow):
         self.Cam4 = Camera(MAIN_HANDLE.cap2, self.uic.label_6, MAIN_HANDLE.camID2)
         self.timer5 = QtCore.QTimer()
         self.timer5.timeout.connect(self.Cam3.update_frame)
-        self.timer6 = QtCore.QTimer()
-        self.timer6.timeout.connect(self.Cam4.update_frame)
+        self.timer5.timeout.connect(self.Cam4.update_frame)
         # Warning in system
         self.timer7 = QtCore.QTimer()
         self.timer7.timeout.connect(self.warningFire)
@@ -107,30 +112,52 @@ class MAIN_HANDLE(QMainWindow):
         self.uic.mainFrame.setCurrentWidget(self.uic.homeF)
         self.uic.menuBtn.setStyleSheet("background-color: #1f232a;")
         self.uic.cam1Btn.setStyleSheet("background-color: #16191d;")
-        self.uic.cam2Btn.setStyleSheet("background-color: #16191d;")
+        self.timer5.stop()
+        self.timer2.start(1)
         self.timer1.start(1)
+        MAIN_HANDLE.flagControl = False
         
-    # Widget 2: Show camera 1
-    def showCam1(self):
+    # Widget 2: Settings
+    def settingsSystem(self):
         self.uic.mainFrame.setCurrentWidget(self.uic.cam1F)
         self.uic.menuBtn.setStyleSheet("background-color: #16191d;")
         self.uic.cam1Btn.setStyleSheet("background-color: #1f232a;")
-        self.uic.cam2Btn.setStyleSheet("background-color: #16191d;")
+        MAIN_HANDLE.flagControl = True
+        GPIO.output(WaterW, GPIO.LOW)
+        GPIO.output(WaterB, GPIO.LOW)
+        self.timer1.stop()
+        self.timer7.stop()
+        self.timer8.stop()
+        self.timer2.stop()
         self.timer5.start(1)
 
-        self.timer1.stop()
-        self.timer6.stop()
+    # Btn control Cam W
+    def camWBtnFc(self):
+        self.uic.camBBtn.setStyleSheet("background-color: #1f232a;")
+        self.uic.camWBtn.setStyleSheet("background-color: #16191d;")
+        if not MAIN_HANDLE.statusBtnW:
+            GPIO.output(WaterW, GPIO.HIGH)
+            self.uic.camWBtn.setText("OFF")
+            print("Cam W => OFF")
+        elif MAIN_HANDLE.statusBtnW:
+            GPIO.output(WaterW, GPIO.LOW)
+            self.uic.camWBtn.setText("ON")
+            print("Cam W => ON")
+        MAIN_HANDLE.statusBtnW = not MAIN_HANDLE.statusBtnW
 
-    # Widget 3: Show camera 2
-    def showCam2(self):
-        self.uic.mainFrame.setCurrentWidget(self.uic.cam2F)
-        self.uic.menuBtn.setStyleSheet("background-color: #16191d;")
-        self.uic.cam1Btn.setStyleSheet("background-color: #16191d;")
-        self.uic.cam2Btn.setStyleSheet("background-color: #1f232a;")
-        self.timer6.start(1)
-        
-        self.timer1.stop()
-        self.timer5.stop()
+    # Btn control Cam W
+    def camBBtnFc(self):
+        self.uic.camWBtn.setStyleSheet("background-color: #1f232a;")
+        self.uic.camBBtn.setStyleSheet("background-color: #16191d;")
+        if not MAIN_HANDLE.statusBtnB:
+            GPIO.output(WaterB, GPIO.HIGH)
+            self.uic.camBBtn.setText("OFF")
+            print("Cam B => OFF")
+        elif MAIN_HANDLE.statusBtnB:
+            GPIO.output(WaterB, GPIO.LOW)
+            self.uic.camBBtn.setText("ON")
+            print("Cam B => ON")
+        MAIN_HANDLE.statusBtnB = not MAIN_HANDLE.statusBtnB
 
     # Detected the Fire
     def check_Fire(self):
@@ -263,17 +290,21 @@ class MAIN_HANDLE(QMainWindow):
 
         if self.aeraB:
             GPIO.output(LedB, GPIO.HIGH)
-            GPIO.output(WaterB, GPIO.HIGH)
+            if not MAIN_HANDLE.flagControl:
+                GPIO.output(WaterB, GPIO.HIGH)
         else:
             GPIO.output(LedB, GPIO.LOW)
-            GPIO.output(WaterB, GPIO.LOW)
+            if not MAIN_HANDLE.flagControl:
+                GPIO.output(WaterB, GPIO.LOW)
 
         if self.aeraW:
             GPIO.output(LedW, GPIO.HIGH)
-            GPIO.output(WaterW, GPIO.HIGH)
+            if not MAIN_HANDLE.flagControl:
+                GPIO.output(WaterW, GPIO.HIGH)
         else:
             GPIO.output(LedW, GPIO.LOW)
-            GPIO.output(WaterW, GPIO.LOW)
+            if not MAIN_HANDLE.flagControl:
+                GPIO.output(WaterW, GPIO.LOW)
         
         self.aeraB = False
         self.aeraW = False
@@ -281,14 +312,11 @@ class MAIN_HANDLE(QMainWindow):
     def clear(self): pass
 
     def closeEvent(self, event):
-        print(self.aeraW)
-        print(self.aeraB)
         self.timer1.stop()
         self.timer2.stop()
         # self.timer3.stop()
         # self.timer4.stop()
         self.timer5.stop()
-        self.timer6.stop()
         self.timer7.stop()
         self.timer8.stop()
         GPIO.cleanup()
