@@ -196,6 +196,8 @@ class MAIN_HANDLE(QMainWindow):
             self.uic.mainFrame.setStyleSheet("background-color: #1f232a;")    
             GPIO.output(LedW, GPIO.LOW)
             GPIO.output(LedB, GPIO.LOW)  
+            GPIO.output(WaterB, GPIO.LOW)
+            GPIO.output(WaterW, GPIO.LOW)
             self.Cam1.objectF = (0, 0)
             self.Cam2.objectF = (0, 0)
 
@@ -261,17 +263,20 @@ class MAIN_HANDLE(QMainWindow):
 
         if self.aeraB:
             GPIO.output(LedB, GPIO.HIGH)
-            GPIO.output(LedB, GPIO.HIGH)
+            GPIO.output(WaterB, GPIO.HIGH)
         else:
             GPIO.output(LedB, GPIO.LOW)
-            GPIO.output(LedB, GPIO.HIGH)
+            GPIO.output(WaterB, GPIO.LOW)
 
         if self.aeraW:
             GPIO.output(LedW, GPIO.HIGH)
-            GPIO.output(LedB, GPIO.HIGH)
+            GPIO.output(WaterW, GPIO.HIGH)
         else:
             GPIO.output(LedW, GPIO.LOW)
-            GPIO.output(LedB, GPIO.HIGH)
+            GPIO.output(WaterW, GPIO.LOW)
+        
+        self.aeraB = False
+        self.aeraW = False
 
     def clear(self): pass
 
