@@ -28,14 +28,18 @@ GPIO.output(WaterB, GPIO.LOW)
 GPIO.output(WaterW1, GPIO.LOW)
 GPIO.output(WaterB1, GPIO.LOW)
 
-output_pin1 = 32 #BlackCam
-output_pin2 = 33 #WhiteCam
+output_pin1 = 33 #BlackCam
+output_pin2 = 32 #WhiteCam
 GPIO.setup(output_pin1, GPIO.OUT, initial=GPIO.HIGH)
 p1 = GPIO.PWM(output_pin1, 50)
 GPIO.setup(output_pin2, GPIO.OUT, initial=GPIO.HIGH)
 p2 = GPIO.PWM(output_pin2, 50)
-p1.start(5.5)
-p2.start(6.5)
+p1.start(6.5)
+indexS1 = [237, 159, 86]
+statusS1 = 0
+p2.start(5.5)
+indexS2 = [250, 184, 47]
+statusS2 = 0
 
 class MAIN_HANDLE(QMainWindow):
     camID1 = "WhiteCam"
@@ -45,9 +49,9 @@ class MAIN_HANDLE(QMainWindow):
     cap2 = cv2.VideoCapture("/dev/video1", cv2.CAP_V4L2)
 
     #------for func Notice------
-    timeOut = 3
-    valueAngle1 = 5.5
-    valueAngle2 = 6.5
+    timeOut = 2
+    valueAngle1 = 6.5
+    valueAngle2 = 5.5
 
     statusWarning = False
 
@@ -87,13 +91,13 @@ class MAIN_HANDLE(QMainWindow):
         self.timer2.timeout.connect(self.check_Fire)
         self.timer2.start(1)
         # Move Camera1:
-        # self.timer3 = QtCore.QTimer()
-        # self.timer3.timeout.connect(self.move_camera1)
-        # self.timer3.start(15000)
+        self.timer3 = QtCore.QTimer()
+        self.timer3.timeout.connect(self.move_camera1)
+        self.timer3.start(15000)
         # Move Camera2:
-        # self.timer4 = QtCore.QTimer()
-        # self.timer4.timeout.connect(self.move_camera2)
-        # self.timer4.start(15000)
+        self.timer4 = QtCore.QTimer()
+        self.timer4.timeout.connect(self.move_camera2)
+        self.timer4.start(15000)
         # Feature for 2 widget Cam1 and Cam2
         self.Cam3 = Camera(MAIN_HANDLE.cap1, self.uic.label_5, MAIN_HANDLE.camID1)
         self.Cam4 = Camera(MAIN_HANDLE.cap2, self.uic.label_6, MAIN_HANDLE.camID2)
@@ -178,14 +182,15 @@ class MAIN_HANDLE(QMainWindow):
                 self.Cam1.flagFire = True
                 self.Cam1.flag0Fire = False 
                 self.Cam1.saveCam = True
-                # self.timer4.stop()
+                self.timer3.stop()
         elif time.time() - self.Cam1.countFire > MAIN_HANDLE.timeOut:
             if not self.Cam1.flag0Fire:
                 print("Cam1: no Fire")
+                self.Cam1.objectF = 0
                 self.Cam1.flagFire = False
                 self.Cam1.flag0Fire = True
                 self.Cam1.flag = False
-                # self.timer4.start()
+                self.timer3.start()
                 self.Cam1.saveCam = False
                 outVid1.release()
 
@@ -204,14 +209,15 @@ class MAIN_HANDLE(QMainWindow):
                 self.Cam2.flagFire = True
                 self.Cam2.flag0Fire = False
                 self.Cam2.saveCam = True
-                # self.timer3.stop()
+                self.timer4.stop()
         elif time.time() - self.Cam2.countFire > MAIN_HANDLE.timeOut:
             if not self.Cam2.flag0Fire:
                 print("Cam2: no Fire")
                 self.Cam2.flagFire = False
                 self.Cam2.flag0Fire = True
                 self.Cam2.flag = False
-                # self.timer3.start()
+                self.Cam2.objectF = 0
+                self.timer4.start()
                 self.Cam2.saveCam = False
                 outVid2.release()
 
@@ -225,26 +231,38 @@ class MAIN_HANDLE(QMainWindow):
             GPIO.output(LedB, GPIO.LOW)  
             GPIO.output(WaterB, GPIO.LOW)
             GPIO.output(WaterW, GPIO.LOW)
-            self.Cam1.objectF = (0, 0)
-            self.Cam2.objectF = (0, 0)
+            self.Cam1.objectF = 0
+            self.Cam2.objectF = 0
 
     # Control servo to move cam
     def move_camera1(self):
+        global statusS1
         p1.start(MAIN_HANDLE.valueAngle1)
+        if MAIN_HANDLE.valueAngle1 == 6.5:
+            statusS1 = 0
+        else:
+            statusS1 += 1
         MAIN_HANDLE.valueAngle1 += 0.5
-        if MAIN_HANDLE.valueAngle1 > 9:
+        if MAIN_HANDLE.valueAngle1 > 8.5:
             MAIN_HANDLE.valueAngle1 = 6.5
             p1.start(MAIN_HANDLE.valueAngle1)
+            statusS1 = 0
             self.timer3.start(15000)
         else:
             self.timer3.start(5000)
 
     def move_camera2(self):
+        global statusS2
         p2.start(MAIN_HANDLE.valueAngle2)
+        if MAIN_HANDLE.valueAngle2 == 5.5:
+            statusS2 = 0
+        else:
+            statusS2 += 1
         MAIN_HANDLE.valueAngle2 += 0.5
-        if MAIN_HANDLE.valueAngle2 > 9:
-            MAIN_HANDLE.valueAngle2 = 6.5
+        if MAIN_HANDLE.valueAngle2 > 7.5:
+            MAIN_HANDLE.valueAngle2 = 5.5
             p2.start(MAIN_HANDLE.valueAngle2)
+            statusS2 = 0
             self.timer4.start(15000)
         else:
             self.timer4.start(5000)
@@ -260,13 +278,17 @@ class MAIN_HANDLE(QMainWindow):
             MAIN_HANDLE.statusWarning = False
     
     def controlWater(self):
-        if self.Cam1.objectF != (0, 0):
+        global statusS1, statusS2, indexS1, indexS2  
+        if self.Cam1.objectF != 0:
             print("CAM1: Fire => " + str(self.Cam1.objectF))
-            if 7/320 * self.Cam1.objectF[0] + 236 - self.Cam1.objectF[1] >= 0:
+            if statusS1 == 3:
+                self.aeraW = True
+                self.aeraB = False
+            elif self.Cam1.objectF <= indexS1[statusS1]:
                 self.aeraB = True
                 self.aeraW = False
                 print("CAM1: Location => Blue")
-            else:
+            elif self.Cam1.objectF > indexS1[statusS1]:
                 self.aeraW = True
                 self.aeraB = False
                 print("CAM1: Location => Red")
@@ -274,13 +296,16 @@ class MAIN_HANDLE(QMainWindow):
             self.aeraB = False
             self.aeraW = False
 
-        if self.Cam2.objectF != (0, 0):
+        if self.Cam2.objectF != 0:
             print("CAM2: Fire => " + str(self.Cam2.objectF))
-            if self.Cam2.objectF[0]/32*(-1) + 246 - self.Cam2.objectF[1] >= 0:
+            if statusS2 == 3:
+                self.aeraB = True
+                self.aeraW = False or self.aeraW
+            elif self.Cam2.objectF <= indexS2[statusS2]:
                 self.aeraW = True
                 self.aeraB = False or self.aeraB
                 print("CAM2: Location => Red")
-            else:
+            elif self.Cam2.objectF > indexS2[statusS2]:
                 self.aeraB = True
                 self.aeraW = False or self.aeraW
                 print("CAM2: Location => Blue")
@@ -321,8 +346,8 @@ class MAIN_HANDLE(QMainWindow):
 
         self.timer1.stop()
         self.timer2.stop()
-        # self.timer3.stop()
-        # self.timer4.stop()
+        self.timer3.stop()
+        self.timer4.stop()
         self.timer5.stop()
         self.timer7.stop()
         self.timer8.stop()
@@ -345,9 +370,10 @@ class Camera:
         self.flag0Fire = False
         self.countFire = 0
         self.saveCam = False
-        self.objectF = (0, 0)
+        self.objectF = 0
 
-    def update_frame(self):          
+    def update_frame(self):   
+        global statusS1, statusS2, indexS1, indexS2       
         ret, self.frame = self.source.read()
         if not MAIN_HANDLE.flagControl:
             self.detectObjects(self.frame)
@@ -357,10 +383,10 @@ class Camera:
         self.text = self.camID + now.strftime("--%d/%m/%Y %H:%M")
         cv2.putText(self.frame, self.text, (20, 470), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,0), 2)
         # add line
-        if self.camID == "WhiteCam":
-            cv2.line(self.frame, (0, 236), (640, 250), (0, 255, 0), 2)
-        elif self.camID == "BlackCam":
-            cv2.line(self.frame, (0, 246), (640, 230), (0, 255, 0), 2)
+        if self.camID == "WhiteCam" and statusS1 < 3:
+            cv2.line(self.frame, (0, indexS1[statusS1]), (640, indexS1[statusS1]), (0, 255, 0), 2)
+        elif self.camID == "BlackCam" and statusS2 < 3:
+            cv2.line(self.frame, (0, indexS2[statusS2]), (640, indexS2[statusS2]), (0, 255, 0), 2)
         
         if MAIN_HANDLE.flagControl:
             self.frame = cv2.resize(self.frame, (600, 450))
@@ -387,7 +413,7 @@ class Camera:
         clss = np.delete(clss, indexDel)
         if len(confs) > 0: 
             self.frame, (x_min, y_min, x_max, y_max) = vis.draw_bboxes(frame, boxes, confs, clss)
-            self.objectF = ((x_min + x_max)/2, y_max)
+            self.objectF = y_max
             self.flag = True
         else:
             self.flag = False
