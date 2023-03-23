@@ -133,6 +133,10 @@ class MAIN_HANDLE(QMainWindow):
         self.timer7.stop()
         self.timer8.stop()
         self.timer2.stop()
+        self.timer3.stop()
+        self.timer4.stop()
+        p1.start(6.5)
+        p2.start(5.5)
         self.timer5.start(1)
 
     # Btn control Cam W
