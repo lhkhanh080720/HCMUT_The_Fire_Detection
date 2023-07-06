@@ -1,248 +1,102 @@
-# ===============pyuic5 -x ui_interface.ui -o ui_interface.py===============
-from libs import *
-from PyQt5.QtWidgets import (QWidget, QLabel, QVBoxLayout, QGridLayout, QSizePolicy, QDialog, QPushButton, QTableWidget, QTableWidgetItem, QAbstractItemView, QMessageBox, QApplication)
-from PyQt5.QtCore import (QThread, pyqtSignal, pyqtSlot, Qt, QSize, QTimer, QTime, QDate, QObject, QEvent)
-from PyQt5.QtGui import (QImage, QPixmap, QFont, QIcon, QColor)
+from pyexpat.errors import XML_ERROR_SUSPEND_PE
+from time import sleep
+import serial
+import string
+import os
+import time
+import argparse # Library support Command Line Interface (CLI)
+import numpy as np
 
-import Jetson.GPIO as GPIO
+import cv2
+import pycuda.autoinit  # This is needed for initializing CUDA driver
 
-GPIO.setmode(GPIO.BOARD)
-LedW = 18
-LedB = 12
-GPIO.setup(LedW, GPIO.OUT, initial=GPIO.LOW) # led to noti fire in Cam White
-GPIO.setup(LedB, GPIO.OUT, initial=GPIO.LOW) # led to noti fire in Cam Black
+from utils.yolo_classes import get_cls_dict
+from utils.camera import add_camera_args, Camera
+from utils.display import open_window, set_display, show_fps
+from utils.visualization import BBoxVisualization
+from utils.yolo_with_plugins import TrtYOLO
 
-output_pin1 = 32 #BlackCam
-output_pin2 = 33 #WhiteCam
-GPIO.setup(output_pin1, GPIO.OUT, initial=GPIO.HIGH)
-p1 = GPIO.PWM(output_pin1, 50)
-GPIO.setup(output_pin2, GPIO.OUT, initial=GPIO.HIGH)
-p2 = GPIO.PWM(output_pin2, 50)
-p1.start(6.5)
-p2.start(6.5)
+ser = serial.Serial('/dev/ttyUSB0', 115200)
+# while True:
+#     dataRec = input("Input = ")
+#     ser.write(dataRec.encode())
+#     sleep(1)
 
-class MAIN_HANDLE(QMainWindow):
-    camID1 = "Cam White"
-    cap1 = cv2.VideoCapture("/dev/video1", cv2.CAP_V4L2)
+evt = -1
+def click(event, x, y, flags, params):
+    global evt
+    global pnt
+    global xReal
+    global yReal
+    if event == cv2.EVENT_LBUTTONDOWN:
+        #print('Mouse event was: ', event)
+        #print(x, ',', y)
+        pnt = (x, y)
+        xReal = x
+        yReal = y
+        evt = event
 
-    camID2 = "Cam Black"
-    cap2 = cv2.VideoCapture("/dev/video0", cv2.CAP_V4L2)
+outVid = cv2.VideoWriter('Video/myCam.avi', cv2.VideoWriter_fourcc(*'XVID'), 21, (640, 480)) # Write the Video with fps = 21
+windowTitle = 'USB Cam'
+def showCam():
+    buff = ''
 
-    #------for func Notice------
-    timeOut = 3
-    valueAngle1 = 6.5
-    valueAngle2 = 6.5
+    cv2.namedWindow(windowTitle)
+    cv2.setMouseCallback(windowTitle, click)
 
-    statusWarning = False
+    camera_id = "/dev/video0"
+    videoCapture = cv2.VideoCapture(camera_id, cv2.CAP_V4L2)
+    videoCapture.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'YUYV'))
+    
+    fps = 0
+    if videoCapture.isOpened():
+        windowHandle = cv2.namedWindow(windowTitle, cv2.WINDOW_AUTOSIZE)
+        frame_width = int(videoCapture.get(3))
+        frame_height = int(videoCapture.get(4))
+        #print('=======> ', frame_height, ' ', frame_width)
+        preTime = time.time()
+        while True:
+            ret, frame = videoCapture.read()
 
-    def __init__(self):
-        super().__init__()
-        self.uic = Ui_MainWindow()
-        self.uic.setupUi(self)
+            # #Calc FPS
+            Time = time.time()
+            curr_fps = 1.0 / (Time - preTime)
+            fps = curr_fps if fps == 0.0 else (fps*0.95 + curr_fps*0.05)
+            preTime = Time
 
-        #Add
-        #=================Stack Widget=================#
-        self.uic.mainFrame.setCurrentWidget(self.uic.homeF)
+            if cv2.getWindowProperty(windowTitle, cv2.WND_PROP_AUTOSIZE) >= 0:
+                cv2.putText(frame, f"FPS: {int(fps)}", (10, 25), cv2.FONT_HERSHEY_PLAIN, 1.5, (0,0,0), 3)
+                
+                #cv2.circle(frame, (int(frame_width/2), int(frame_height/2)), 2, (0, 0, 255), -1)
+                #cv2.putText(frame, '(320, 240)', (int(frame_width/2), int(frame_height/2)), cv2.FONT_HERSHEY_PLAIN, 1, (255, 0, 0), 2)
+                #cv2.line(frame, (0, 240), (640, 240), (0, 0 ,255), 1)
 
-        self.uic.menuBtn.clicked.connect(self.show2Cam)
-        self.uic.cam1Btn.clicked.connect(self.showCam1)
-        self.uic.cam2Btn.clicked.connect(self.showCam2)
-        #=================Add feature=================#
-        self.Cam1 = Camera(MAIN_HANDLE.cap1, self.uic.label_3, MAIN_HANDLE.camID1)    
-        self.Cam2 = Camera(MAIN_HANDLE.cap2, self.uic.label_4, MAIN_HANDLE.camID2)
-        self.Cam1.update_frame()
-        self.Cam2.update_frame()
-        # Update Camera
-        self.timer1 = QtCore.QTimer()
-        self.timer1.timeout.connect(self.Cam1.update_frame)
-        self.timer1.timeout.connect(self.Cam2.update_frame)
-        self.timer1.start(1)
-        # Detect the Fire
-        self.timer2 = QtCore.QTimer()
-        self.timer2.timeout.connect(self.check_Fire)
-        self.timer2.start(1)
-        # Move Camera1:
-        self.timer3 = QtCore.QTimer()
-        self.timer3.timeout.connect(self.move_camera1)
-        self.timer3.start(15000)
-        # Move Camera2:
-        self.timer4 = QtCore.QTimer()
-        self.timer4.timeout.connect(self.move_camera2)
-        self.timer4.start(15000)
-        # Feature for 2 widget Cam1 and Cam2
-        self.Cam3 = Camera(MAIN_HANDLE.cap1, self.uic.label_5, MAIN_HANDLE.camID1)
-        self.Cam4 = Camera(MAIN_HANDLE.cap2, self.uic.label_6, MAIN_HANDLE.camID2)
-        self.timer5 = QtCore.QTimer()
-        self.timer5.timeout.connect(self.Cam3.update_frame)
-        self.timer6 = QtCore.QTimer()
-        self.timer6.timeout.connect(self.Cam4.update_frame)
-        # Warning in system
-        self.timer7 = QtCore.QTimer()
-        self.timer7.timeout.connect(self.warningFire)
+                if evt == 1:
+                    cv2.circle(frame, pnt, 2, (0, 0, 255), -1)
+                    cv2.putText(frame, str(pnt), pnt, cv2.FONT_HERSHEY_PLAIN, 1, (255, 0, 0), 2)
+                    xSend = -9 * xReal / 80 + 132
+                    ySend = -47 * yReal / 480 + 132
+                    data = '-' + str(int(xSend)) + '-' + str(int(ySend)) + '\r'
+                    if buff != data:
+                        print(data)
+                        ser.write(data.encode())
+                        buff = data
+                        print('=========================')
 
-    # Widget 1: Show 2 camera
-    def show2Cam(self):
-        self.uic.mainFrame.setCurrentWidget(self.uic.homeF)
-        self.uic.menuBtn.setStyleSheet("background-color: #1f232a;")
-        self.uic.cam1Btn.setStyleSheet("background-color: #16191d;")
-        self.uic.cam2Btn.setStyleSheet("background-color: #16191d;")
-        self.timer1.start(1)
-        
-    # Widget 2: Show camera 1
-    def showCam1(self):
-        self.uic.mainFrame.setCurrentWidget(self.uic.cam1F)
-        self.uic.menuBtn.setStyleSheet("background-color: #16191d;")
-        self.uic.cam1Btn.setStyleSheet("background-color: #1f232a;")
-        self.uic.cam2Btn.setStyleSheet("background-color: #16191d;")
-        self.timer5.start(1)
+                cv2.imshow(windowTitle, frame)
+                outVid.write(frame)  
+                #cv2.moveWindow(windowTitle, 0, 0)
+               
+            else:
+                break
+            if cv2.waitKey(1) == ord('q'): #check Button 'q' in 1 milis and do st...
+                break
+        videoCapture.release()
+        cv2.destroyAllWindows()
+        outVid.release() 
+    else:
+        print('Unable to open Camera!')
 
-        self.timer1.stop()
-        self.timer6.stop()
-    # Widget 3: Show camera 2
-    def showCam2(self):
-        self.uic.mainFrame.setCurrentWidget(self.uic.cam2F)
-        self.uic.menuBtn.setStyleSheet("background-color: #16191d;")
-        self.uic.cam1Btn.setStyleSheet("background-color: #16191d;")
-        self.uic.cam2Btn.setStyleSheet("background-color: #1f232a;")
-        self.timer6.start(1)
-        
-        self.timer1.stop()
-        self.timer5.stop()
-    # Detected the Fire
-    def check_Fire(self):
-        if self.Cam1.flag: 
-            self.Cam1.countFire = time.time()
-            if not self.Cam1.flagFire:
-                if not self.timer7.isActive():
-                    print("Timer is running")
-                    self.timer7.start(700)
-                print("Cam1: Fire!")
-                GPIO.output(LedW, GPIO.HIGH)
-                self.Cam1.flagFire = True
-                self.Cam1.flag0Fire = False
-                self.timer4.stop()
-        elif time.time() - self.Cam1.countFire > MAIN_HANDLE.timeOut:
-            if not self.Cam1.flag0Fire:
-                print("Cam1: no Fire")
-                self.Cam1.flagFire = False
-                GPIO.output(LedW, GPIO.LOW)
-                self.Cam1.flag0Fire = True
-                self.Cam1.flag = False
-                self.timer4.start()
 
-        if self.Cam2.flag: 
-            self.Cam2.countFire = time.time()
-            if not self.Cam2.flagFire:
-                if not self.timer7.isActive():
-                    print("Timer is running")
-                    self.timer7.start(700)
-                print("Cam2: Fire!")
-                GPIO.output(LedB, GPIO.HIGH)
-                self.Cam2.flagFire = True
-                self.Cam2.flag0Fire = False
-                self.timer3.stop()
-        elif time.time() - self.Cam2.countFire > MAIN_HANDLE.timeOut:
-            if not self.Cam2.flag0Fire:
-                print("Cam2: no Fire")
-                self.Cam2.flagFire = False
-                GPIO.output(LedB, GPIO.LOW)
-                self.Cam2.flag0Fire = True
-                self.Cam2.flag = False
-                self.timer3.start()
-        if self.Cam1.flag0Fire and self.Cam2.flag0Fire:
-            self.timer7.stop()
-            self.uic.mainFrame.setStyleSheet("background-color: #1f232a;")
-    # Control servo to move cam
-    def move_camera1(self):
-        p1.start(MAIN_HANDLE.valueAngle1)
-        MAIN_HANDLE.valueAngle1 += 0.5
-        if MAIN_HANDLE.valueAngle1 > 9:
-            MAIN_HANDLE.valueAngle1 = 6.5
-            p1.start(MAIN_HANDLE.valueAngle1)
-            self.timer3.start(15000)
-        else:
-            self.timer3.start(5000)
-
-    def move_camera2(self):
-        p2.start(MAIN_HANDLE.valueAngle2)
-        MAIN_HANDLE.valueAngle2 += 0.5
-        if MAIN_HANDLE.valueAngle2 > 9:
-            MAIN_HANDLE.valueAngle2 = 6.5
-            p2.start(MAIN_HANDLE.valueAngle2)
-            self.timer4.start(15000)
-        else:
-            self.timer4.start(5000)
-
-    def warningFire(self):
-        if not MAIN_HANDLE.statusWarning:
-            self.uic.mainFrame.setStyleSheet("background-color: rgb(255, 0, 0);")
-        elif MAIN_HANDLE.statusWarning:
-            self.uic.mainFrame.setStyleSheet("background-color: #1f232a;")
-        if not MAIN_HANDLE.statusWarning:
-            MAIN_HANDLE.statusWarning = True
-        elif MAIN_HANDLE.statusWarning:
-            MAIN_HANDLE.statusWarning = False
-
-    def clear(self): pass
-
-    def closeEvent(self, event):
-        # ret = QMessageBox.information(self, "Quit Program", # title 
-        #                               "Are you sure to Quit?", QMessageBox.Yes | QMessageBox.No)
-        # if ret == QMessageBox.Yes:
-        self.timer1.stop()
-        self.timer2.stop()
-        self.timer3.stop()
-        self.timer4.stop()
-        self.timer5.stop()
-        self.timer6.stop()
-        self.timer7.stop()
-        GPIO.cleanup()
-        event.accept()
-        # else:
-        #     event.ignore()
-
-# Class Camera
-numClass = 2     #The numbers of classes
-cls_dict = get_cls_dict(numClass)
-vis = BBoxVisualization(cls_dict)
-trt_yolo = TrtYOLO('obj', numClass, False)
-class Camera:
-    def __init__(self, cam_link, output, camID):
-        self.source = cam_link
-        self.output = output
-        self.camID = camID
-        self.flag = False
-        self.flagFire = False
-        self.flag0Fire = False
-        self.countFire = 0
-
-    def update_frame(self):          
-        ret, self.frame = self.source.read()
-        self.detectObjects(self.frame)
-        self.frame = cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB)
-        image = QImage(self.frame, self.frame.shape[1], self.frame.shape[0], QImage.Format_RGB888)
-        self.output.setPixmap(QPixmap.fromImage(image))
-
-    def detectObjects(self, frame):  
-        global vis, trt_yolo
-        boxes, confs, clss = trt_yolo.detect(frame, 0.3)
-        #Precise poison filter (> 0.6)
-        indexDel = []
-        for index, value in enumerate(confs):
-            if value <= 0.7:
-                indexDel.append(index)
-        boxes = np.delete(boxes, indexDel, 0)
-        confs = np.delete(confs, indexDel)
-        clss = np.delete(clss, indexDel)
-        if len(confs) > 0: 
-            self.frame, (x_min, y_min, x_max, y_max) = vis.draw_bboxes(frame, boxes, confs, clss)
-            self.flag = True
-        else:
-            self.flag = False
-
-if __name__ == "__main__":
-    import sys
-    app = QApplication(sys.argv)
-    main_win = MAIN_HANDLE()
-    main_win.show()
-    sys.exit(app.exec_())
+if __name__ == '__main__':
+    showCam()

@@ -9,24 +9,12 @@ import Jetson.GPIO as GPIO
 
 GPIO.setmode(GPIO.BOARD)
 WaterW = 18 # PIN (+) in motor W
-WaterW1= 7  # PIN (-) in motor W
 WaterB = 12 # PIN (+) in motor B
-WaterB1= 16 # PIN (-) in motor B
 
-LedW = 11
-LedB = 13
-GPIO.setup(LedW, GPIO.OUT, initial=GPIO.LOW) # led to noti fire in Cam White
-GPIO.setup(LedB, GPIO.OUT, initial=GPIO.LOW) # led to noti fire in Cam Black
 GPIO.setup(WaterW, GPIO.OUT, initial=GPIO.LOW) # control waterW
 GPIO.setup(WaterB, GPIO.OUT, initial=GPIO.LOW) # control waterB
-GPIO.setup(WaterW1, GPIO.OUT, initial=GPIO.LOW) # control waterW
-GPIO.setup(WaterB1, GPIO.OUT, initial=GPIO.LOW) # control waterB
-GPIO.output(LedW, GPIO.HIGH)
-GPIO.output(LedB, GPIO.HIGH)
 GPIO.output(WaterW, GPIO.LOW)
 GPIO.output(WaterB, GPIO.LOW)
-GPIO.output(WaterW1, GPIO.LOW)
-GPIO.output(WaterB1, GPIO.LOW)
 
 output_pin1 = 33 #BlackCam
 output_pin2 = 32 #WhiteCam
@@ -34,12 +22,15 @@ GPIO.setup(output_pin1, GPIO.OUT, initial=GPIO.HIGH)
 p1 = GPIO.PWM(output_pin1, 50)
 GPIO.setup(output_pin2, GPIO.OUT, initial=GPIO.HIGH)
 p2 = GPIO.PWM(output_pin2, 50)
-p1.start(6.5)
-indexS1 = [237, 159, 86]
+p1.start(7)
+indexS1 = [306, 234, 156]
 statusS1 = 0
-p2.start(5.5)
-indexS2 = [250, 184, 47]
+p2.start(6)
+indexS2 = [271, 157, 93]#Black CAm
 statusS2 = 0
+
+timeB = time.time()
+timeW = time.time()
 
 class MAIN_HANDLE(QMainWindow):
     camID1 = "WhiteCam"
@@ -50,13 +41,13 @@ class MAIN_HANDLE(QMainWindow):
 
     #------for func Notice------
     timeOut = 2
-    valueAngle1 = 6.5
-    valueAngle2 = 5.5
+    valueAngle1 = 7
+    valueAngle2 = 6
 
     statusWarning = False
 
     areaW = False
-    aeraB = False
+    areaB = False
 
     flagControl = False
 
@@ -93,11 +84,11 @@ class MAIN_HANDLE(QMainWindow):
         # Move Camera1:
         self.timer3 = QtCore.QTimer()
         self.timer3.timeout.connect(self.move_camera1)
-        self.timer3.start(15000)
+        # self.timer3.start(15000)
         # Move Camera2:
         self.timer4 = QtCore.QTimer()
         self.timer4.timeout.connect(self.move_camera2)
-        self.timer4.start(15000)
+        # self.timer4.start(15000)
         # Feature for 2 widget Cam1 and Cam2
         self.Cam3 = Camera(MAIN_HANDLE.cap1, self.uic.label_5, MAIN_HANDLE.camID1)
         self.Cam4 = Camera(MAIN_HANDLE.cap2, self.uic.label_6, MAIN_HANDLE.camID2)
@@ -119,6 +110,11 @@ class MAIN_HANDLE(QMainWindow):
         self.timer5.stop()
         self.timer2.start(1)
         self.timer1.start(1)
+        self.timer3.start(15000)
+        self.timer4.start(15000)
+        self.timer8.stop()
+        p1.stop()
+        p2.stop()
         MAIN_HANDLE.flagControl = False
         
     # Widget 2: Settings
@@ -129,14 +125,14 @@ class MAIN_HANDLE(QMainWindow):
         MAIN_HANDLE.flagControl = True
         GPIO.output(WaterW, GPIO.LOW)
         GPIO.output(WaterB, GPIO.LOW)
+        p1.start(7)
+        p2.start(6)
         self.timer1.stop()
         self.timer7.stop()
         self.timer8.stop()
         self.timer2.stop()
         self.timer3.stop()
         self.timer4.stop()
-        p1.start(6.5)
-        p2.start(5.5)
         self.timer5.start(1)
 
     # Btn control Cam W
@@ -146,11 +142,9 @@ class MAIN_HANDLE(QMainWindow):
         if not MAIN_HANDLE.statusBtnW:
             GPIO.output(WaterW, GPIO.HIGH)
             self.uic.camWBtn.setText("OFF")
-            print("Cam W => OFF")
         elif MAIN_HANDLE.statusBtnW:
             GPIO.output(WaterW, GPIO.LOW)
             self.uic.camWBtn.setText("ON")
-            print("Cam W => ON")
         MAIN_HANDLE.statusBtnW = not MAIN_HANDLE.statusBtnW
 
     # Btn control Cam W
@@ -160,11 +154,9 @@ class MAIN_HANDLE(QMainWindow):
         if not MAIN_HANDLE.statusBtnB:
             GPIO.output(WaterB, GPIO.HIGH)
             self.uic.camBBtn.setText("OFF")
-            print("Cam B => OFF")
         elif MAIN_HANDLE.statusBtnB:
             GPIO.output(WaterB, GPIO.LOW)
             self.uic.camBBtn.setText("ON")
-            print("Cam B => ON")
         MAIN_HANDLE.statusBtnB = not MAIN_HANDLE.statusBtnB
 
     # Detected the Fire
@@ -187,6 +179,9 @@ class MAIN_HANDLE(QMainWindow):
                 self.Cam1.flag0Fire = False 
                 self.Cam1.saveCam = True
                 self.timer3.stop()
+                self.timer4.stop()
+                p1.stop()
+                p2.stop()
         elif time.time() - self.Cam1.countFire > MAIN_HANDLE.timeOut:
             if not self.Cam1.flag0Fire:
                 print("Cam1: no Fire")
@@ -194,7 +189,8 @@ class MAIN_HANDLE(QMainWindow):
                 self.Cam1.flagFire = False
                 self.Cam1.flag0Fire = True
                 self.Cam1.flag = False
-                self.timer3.start()
+                self.timer3.start(15000)
+                self.timer4.start(15000)
                 self.Cam1.saveCam = False
                 outVid1.release()
 
@@ -213,7 +209,10 @@ class MAIN_HANDLE(QMainWindow):
                 self.Cam2.flagFire = True
                 self.Cam2.flag0Fire = False
                 self.Cam2.saveCam = True
+                self.timer3.stop()
                 self.timer4.stop()
+                p1.stop()
+                p2.stop()
         elif time.time() - self.Cam2.countFire > MAIN_HANDLE.timeOut:
             if not self.Cam2.flag0Fire:
                 print("Cam2: no Fire")
@@ -221,18 +220,17 @@ class MAIN_HANDLE(QMainWindow):
                 self.Cam2.flag0Fire = True
                 self.Cam2.flag = False
                 self.Cam2.objectF = 0
-                self.timer4.start()
+                self.timer3.start(15000)
+                self.timer4.start(15000)
                 self.Cam2.saveCam = False
                 outVid2.release()
 
         if self.Cam1.flag0Fire and self.Cam2.flag0Fire:
             self.timer7.stop()
             self.timer8.stop()
-            self.aeraW = False
-            self.aeraB = False
+            self.areaW = False
+            self.areaB = False
             self.uic.mainFrame.setStyleSheet("background-color: #1f232a;")    
-            GPIO.output(LedW, GPIO.LOW)
-            GPIO.output(LedB, GPIO.LOW)  
             GPIO.output(WaterB, GPIO.LOW)
             GPIO.output(WaterW, GPIO.LOW)
             self.Cam1.objectF = 0
@@ -242,13 +240,13 @@ class MAIN_HANDLE(QMainWindow):
     def move_camera1(self):
         global statusS1
         p1.start(MAIN_HANDLE.valueAngle1)
-        if MAIN_HANDLE.valueAngle1 == 6.5:
+        if MAIN_HANDLE.valueAngle1 == 7:
             statusS1 = 0
         else:
             statusS1 += 1
         MAIN_HANDLE.valueAngle1 += 0.5
         if MAIN_HANDLE.valueAngle1 > 8.5:
-            MAIN_HANDLE.valueAngle1 = 6.5
+            MAIN_HANDLE.valueAngle1 = 7
             p1.start(MAIN_HANDLE.valueAngle1)
             statusS1 = 0
             self.timer3.start(15000)
@@ -258,13 +256,13 @@ class MAIN_HANDLE(QMainWindow):
     def move_camera2(self):
         global statusS2
         p2.start(MAIN_HANDLE.valueAngle2)
-        if MAIN_HANDLE.valueAngle2 == 5.5:
+        if MAIN_HANDLE.valueAngle2 == 6:
             statusS2 = 0
         else:
             statusS2 += 1
         MAIN_HANDLE.valueAngle2 += 0.5
         if MAIN_HANDLE.valueAngle2 > 7.5:
-            MAIN_HANDLE.valueAngle2 = 5.5
+            MAIN_HANDLE.valueAngle2 = 6
             p2.start(MAIN_HANDLE.valueAngle2)
             statusS2 = 0
             self.timer4.start(15000)
@@ -282,71 +280,57 @@ class MAIN_HANDLE(QMainWindow):
             MAIN_HANDLE.statusWarning = False
     
     def controlWater(self):
-        global statusS1, statusS2, indexS1, indexS2  
-        if self.Cam1.objectF != 0:
-            print("CAM1: Fire => " + str(self.Cam1.objectF))
-            if statusS1 == 3:
-                self.aeraW = True
-                self.aeraB = False
-            elif self.Cam1.objectF <= indexS1[statusS1]:
-                self.aeraB = True
-                self.aeraW = False
-                print("CAM1: Location => Blue")
-            elif self.Cam1.objectF > indexS1[statusS1]:
-                self.aeraW = True
-                self.aeraB = False
-                print("CAM1: Location => Red")
+        global statusS1, statusS2, indexS1, indexS2, timeW, timeB
+        if len(self.Cam1.objectF) > 0:
+            for index, value in enumerate(self.Cam1.objectF):
+                if value <= indexS1[statusS1]:
+                    self.areaB = True 
+                    self.areaW = False or self.areaW
+                elif value > indexS1[statusS1]:
+                    self.areaW = True
+                    self.areaB = False or self.areaB
         else:
-            self.aeraB = False
-            self.aeraW = False
+            self.areaB = False
+            self.areaW = False
 
-        if self.Cam2.objectF != 0:
-            print("CAM2: Fire => " + str(self.Cam2.objectF))
-            if statusS2 == 3:
-                self.aeraB = True
-                self.aeraW = False or self.aeraW
-            elif self.Cam2.objectF <= indexS2[statusS2]:
-                self.aeraW = True
-                self.aeraB = False or self.aeraB
-                print("CAM2: Location => Red")
-            elif self.Cam2.objectF > indexS2[statusS2]:
-                self.aeraB = True
-                self.aeraW = False or self.aeraW
-                print("CAM2: Location => Blue")
+        if len(self.Cam2.objectF) > 0:
+            for index, value in enumerate(self.Cam2.objectF):
+                if value <= indexS2[statusS2]:
+                    self.areaW = True 
+                    self.areaB = False or self.areaB
+                elif value > indexS2[statusS2]:
+                    self.areaB = True
+                    self.areaW = False or self.areaW
         else:
-            self.aeraW = False or self.aeraW
-            self.aeraB = False or self.aeraB
+            self.areaW = False or self.areaW
+            self.areaB = False or self.areaB
 
-        if self.aeraB:
-            GPIO.output(LedB, GPIO.HIGH)
+        if self.areaB:
+            print("area ==>> B")
             if not MAIN_HANDLE.flagControl:
                 GPIO.output(WaterB, GPIO.HIGH)
+                timeB = time.time()
         else:
-            GPIO.output(LedB, GPIO.LOW)
-            if not MAIN_HANDLE.flagControl:
+            if not MAIN_HANDLE.flagControl and time.time() - timeB >= 2:
                 GPIO.output(WaterB, GPIO.LOW)
 
-        if self.aeraW:
-            GPIO.output(LedW, GPIO.HIGH)
+        if self.areaW:
+            print("area ==>> W")
             if not MAIN_HANDLE.flagControl:
                 GPIO.output(WaterW, GPIO.HIGH)
+                timeW = time.time()
         else:
-            GPIO.output(LedW, GPIO.LOW)
-            if not MAIN_HANDLE.flagControl:
+            if not MAIN_HANDLE.flagControl and time.time() - timeW >= 2:
                 GPIO.output(WaterW, GPIO.LOW)
         
-        self.aeraB = False
-        self.aeraW = False
+        self.areaW = False 
+        self.areaB = False
 
     def clear(self): pass
 
     def closeEvent(self, event):
         GPIO.output(WaterW, GPIO.LOW)
         GPIO.output(WaterB, GPIO.LOW)
-        GPIO.output(WaterW1, GPIO.LOW)
-        GPIO.output(WaterB1, GPIO.LOW)
-        GPIO.output(LedW, GPIO.LOW)
-        GPIO.output(LedB, GPIO.LOW)
 
         self.timer1.stop()
         self.timer2.stop()
@@ -387,9 +371,9 @@ class Camera:
         self.text = self.camID + now.strftime("--%d/%m/%Y %H:%M")
         cv2.putText(self.frame, self.text, (20, 470), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,0), 2)
         # add line
-        if self.camID == "WhiteCam" and statusS1 < 3:
+        if self.camID == "WhiteCam":
             cv2.line(self.frame, (0, indexS1[statusS1]), (640, indexS1[statusS1]), (0, 255, 0), 2)
-        elif self.camID == "BlackCam" and statusS2 < 3:
+        elif self.camID == "BlackCam":
             cv2.line(self.frame, (0, indexS2[statusS2]), (640, indexS2[statusS2]), (0, 255, 0), 2)
         
         if MAIN_HANDLE.flagControl:
@@ -415,12 +399,14 @@ class Camera:
         boxes = np.delete(boxes, indexDel, 0)
         confs = np.delete(confs, indexDel)
         clss = np.delete(clss, indexDel)
+
         if len(confs) > 0: 
-            self.frame, (x_min, y_min, x_max, y_max) = vis.draw_bboxes(frame, boxes, confs, clss)
+            self.frame, y_max = vis.draw_bboxes(frame, boxes, confs, clss)
             self.objectF = y_max
             self.flag = True
         else:
             self.flag = False
+            self.objectF = []
 
 if __name__ == "__main__":
     import sys
