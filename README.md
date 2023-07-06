@@ -21,4 +21,12 @@
 ![example1](Pic/line13.png)
 *(Accuracy ~ 80%)*
   - Testing the model by images, not in dataset:
-![Resultvideo](Pic/Resultvideo.mp4)
+![example1](Pic/line24.png)
+![example1](Pic/line25.png)
+  - Testing the model by actual video: [Resultvideo.mp4][1]
+
+
+[1]: <https://github.com/lhkhanh080720/Code_DetectFire/blob/main/Pic/Resultvideo.mp4>
+
+#### GUI
+

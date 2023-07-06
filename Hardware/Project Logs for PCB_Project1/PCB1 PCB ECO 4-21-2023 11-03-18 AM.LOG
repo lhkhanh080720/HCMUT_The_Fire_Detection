@@ -1,0 +1,7 @@
+Added Component: Designator=BJT1(2sb688)
+Add component. Clean all parameters for all variants
+Added Pin To Net: NetName=NetBJT1_1 Pin=BJT1-1
+Added Pin To Net: NetName=Vout~5V~2A Pin=BJT1-2
+Added Pin To Net: NetName=Vout~12V Pin=BJT1-3
+Added Member To Class: ClassName=Sheet1 Member=Component BJT1 2sb688
+Added Room: Name=Sheet1

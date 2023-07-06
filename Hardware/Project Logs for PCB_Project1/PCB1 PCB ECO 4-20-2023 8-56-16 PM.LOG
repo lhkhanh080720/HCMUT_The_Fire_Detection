@@ -1,0 +1,5 @@
+Change Component Footprint: Designator= Old Footprint=PCBComponent_1 New Footprint=Diode 6A10
+Change Component Designator: OldDesignator= NewDesignator=Diode1
+Added Pin To Net: NetName=Net1_1 Pin=Diode1-1
+Added Pin To Net: NetName=Vout~12V Pin=Diode1-2
+Change Net Name : Old Net Name=Net1_1 New Net Name=NetDiode1_1

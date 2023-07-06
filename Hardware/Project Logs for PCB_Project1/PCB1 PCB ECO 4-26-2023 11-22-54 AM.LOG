@@ -1,0 +1,10 @@
+Added Component: Designator=RL2(RELAY5PIN-10A)
+Add component. Clean all parameters for all variants
+Add component (AddParameter): Name = "Value"; Value = "Relay ?V - 10A"; VariantName = "[No Variations]"
+Added Pin To Net: NetName=NetDiode1_1 Pin=RL2-1
+Added Pin To Net: NetName=S2 Pin=RL2-2
+Added Pin To Net: NetName=S1 (Main) Pin=RL2-3
+Added Pin To Net: NetName=GND Pin=RL2-4
+Added Pin To Net: NetName=S1 (Main) Pin=RL2-5
+Added Member To Class: ClassName=Sheet1 Member=Component RL2 Relay 12V
+Added Room: Name=Sheet1
