@@ -1,3 +1,6 @@
+# INTRODUCE
+Building an automatic fire extinguishing system in a large room when using sensors is quite difficult.
+***
 # HARDWARE 
 #### Block diagram system
 ![example1](Pic/SoDoKhoi.png)
